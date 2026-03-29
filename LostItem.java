@@ -6,7 +6,40 @@ public class LostItem extends Item {
     private User owner; //owner is the person who is posting their lost item
     //                    they shud also post a picture.
 
-    public Object[] getsummarydata()
+  
+  
+  private String ownerName;
+  private String ownerContact;   // phone or email
+
+public LostItem(String name, String description, String location, String category, String imagePath,String ownerName,String ownerContact){
+    super( name, description, location, category, imagePath);
+    this.ownerName = ownerName;
+    this.ownerContact  = ownerContact;
+}
+   // .....................Getters.........................................
+    public String getOwnerName()    { return ownerName; }
+    public String getOwnerContact() { return ownerContact; }
+  
+@Override 
+    public String getsummarydata() {
+        return "LOST  | ID: " + getItemID() 
+             + " | Category: " + getCategory()
+             + " | Lost at: "  + getLocation()
+             + " | Date: "     + getDate()
+             + " | Owner: "    + ownerName
+             + " | Contact: "  + ownerContact
+             + " | Description: "     + getDescription();
+    }  
+  
+  
+  
+  
+  
+  
+  
+  
+    /*  @Override
+    public String getsummarydata()
     {
         //display those details here that would be visible in the list on mainmenu
         return new Object[] {
@@ -29,4 +62,5 @@ public class LostItem extends Item {
             owner.getEmail()
         };
     }
+*/
 }

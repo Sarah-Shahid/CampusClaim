@@ -14,7 +14,9 @@ public abstract class Item {
     //private String owner;  //do we need this attribute? what shud be the type.
 
     //make constructors.
+    
     Item () {} //no arg constructor
+
     Item (String name, String description, String location, String category, String imagePath)
     {
         itemID = (++counter); //later fix: save it to file handling so the counter doesnt start
@@ -80,6 +82,6 @@ public abstract class Item {
 
     //pending getter setter for owner.
 
-    public abstract Object[] getsummarydata (); //abstract method means you dont need to define that method in the parent class, implement in subclasses.
-    public abstract Object[] getdetails () ;                 
+    public abstract String getsummarydata (); //abstract method means you dont need to define that method in the parent class, implement in subclasses.
+    //public abstract Object[] getdetails () ;                 
 }
