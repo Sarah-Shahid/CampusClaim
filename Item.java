@@ -8,25 +8,20 @@ public abstract class Item {
     private String category;
     private LocalDate date;
 
-
-    private String description;
-    private String imagePath;
     //private String owner;  //do we need this attribute? what shud be the type.
 
     //make constructors.
-    
     Item () {} //no arg constructor
 
-    Item (String name, String description, String location, String category, String imagePath)
+    Item (String name, String location, String category)
     {
         itemID = (++counter); //later fix: save it to file handling so the counter doesnt start
         //                       from 100 again when u restart the program.
         this.name = name;
-        this.description = description;
         this.location = location;
         this.category = category;
-        this.imagePath = imagePath;
         date = LocalDate.now(); //this would make an instant of the current date 
+
         //owner? shud it be from class User?
     }
 
@@ -41,13 +36,6 @@ public abstract class Item {
     public void setName (String name)
     {
         this.name = name;
-    }
-
-    public String getDescription() {
-    return description;
-    }
-    public void setDescription(String description) {
-    this.description = description;
     }
 
     public String getLocation () {return location;}
@@ -73,14 +61,13 @@ public abstract class Item {
     }
 
     //maybe make imagepath only specific to lost items.
-    public String getImagePath() {
-    return imagePath;
-    }
-    public void setImagePath(String imagePath) {
-    this.imagePath = imagePath;
-    }
+    // public String getImagePath() {
+    // return imagePath;
+    // }
+    // public void setImagePath(String imagePath) {
+    // this.imagePath = imagePath;
+    // }
 
-    //pending getter setter for owner.
 
     public abstract String getsummarydata (); //abstract method means you dont need to define that method in the parent class, implement in subclasses.
     //public abstract Object[] getdetails () ;                 

@@ -1,74 +1,101 @@
 /*fields are split into two groups:
- *   PUBLIC  – shown on the listing board (category, location, date)
+ *   PUBLIC  – shown on the listing board (id, category, location, date, title )
  *   SECRET  – hidden from claimants- used only during validation
- *             (colour, brand, identityMark)
+ *             (colour, brand, identityMark), different for diff groups.
  * */
+import java.util.Map;
 
-public class FoundItem extends Item {
-
-//.............................Attributes............
-
-//..........................hidden from the user for validation..................
-    private String colour;           // major colour of the object 
-    private String brand;            // what brand/model is it of (none for things without a brand)
-    private String identityMark;     // major identity mark to validate 
-
-
-    
-//..........................finder information..................  
+public abstract class FoundItem extends Item {
+    private Boolean isClaimed = false;
+    //name, date, ID, location, category from item class
+      
+    //finder information
     private String finderName;
     private String finderContact;
-    private Boolean isClaimed = false;
+    //private String finderEmail;
     
-    
-
-
-//.........................constructors................
-// set values of attributes 
-public FoundItem(String name, String description, String location, String category, String imagePath,String colour,String brand,String identityMark,String finderName, String finderContact){
-    super( name, description, location, category, imagePath);
-    this.colour = colour;
-    this.brand  = brand;
-    this.identityMark = identityMark;
+    //constructors //check again
+    public FoundItem () {};
+    public FoundItem(String name, String location, String category, String finderName, String finderContact){
+    super(name, location, category);
     this.finderName   = finderName;
     this.finderContact   = finderContact;
-}
+    }
 
-//..........................getters..................
-    public String getColour()             { return colour; }
-    public String getBrand()              { return brand; }
-    public String getidentityMark() { return identityMark; }    
+    //getters
     public String getFinderName()         { return finderName; }
     public String getFinderContact()      { return finderContact; }
     public Boolean getIsClaimed()      { return isClaimed; }
 
-//..........................setters..................
+    //setters
     public void setIsClaimed(Boolean claimed) {  this.isClaimed = claimed; }
     
 //..........................methods..................
    
-@Override //overrides the abstarct method in item class
+//Reporter fills in the ANSWER sheet   →  registerDetails()
+    //Claimant fills in the QUESTION sheet →  getVerificationQuestions()
+    //Then system compares the two         →  verifyClaim()
+
+    public abstract void registerDetails(Map <String , String> name);     //store right answers
+    public abstract Map <String, String> getValidationQuestions ();       //decides what questions to ask.
+    public abstract boolean verifyClaims (Map <String , String> claimantAnswers);   //returns true if claimant answers right.
+
+    //all categories need to use this: so that
+    //"sky blue"  should match  "blue"      
+    //"NIKE"      should match  "nike"      
+    //" black "   should match  "black" 
+    public boolean softMatch(String userAnswer, String realAnswer)
+    {
+        if (userAnswer == null || realAnswer == null) return false; //answer not matching
+        String real = realAnswer.toLowerCase().trim();
+        String user = userAnswer.toLowerCase().trim();
+
+        if (user.equals(real)) return true; //this answer matches
+      
+        for (String word : real.split(" "))
+        {
+            if (word.length() > 2 && user.contains(word)) return true;
+        }
+        return false;
+    }
+
+    //make a mathod that can validate claim only when you answer some right questions
+    //according to different threshold for each class.
+    public boolean validateWithScore (Map <String, String> userAnswers, Map <String, String> realAnswers, int threshold)
+    {
+        int correct = 0; //keeps track of how many questions claimant got right.
+        for (String key : realAnswers.keySet())
+        {
+            String real = realAnswers.get(key);
+            String user = userAnswers.get(key); //using key variable here to match
+            //match done by key name, not position, more safe.
+            if (softMatch(user, real))
+            {
+                correct ++;
+            }
+        }
+        return correct >= threshold; //return true if user fulfilled the requirement.
+    }
+
+    @Override //overrides the abstarct method in item class
     public String getsummarydata() {
         return "FOUND | ID: "     + getItemID()
+             + " | Name: "        + getName()
              + " | Category: "    + getCategory()
              + " | Found at: "    + getLocation()
              + " | Date: "        + getDate()
-             + " | Status: "      + getIsClaimed(); //correct it sarah acc to the logic
+             + " | Status: "      + (getIsClaimed()? "CLAIMED" : "FOUND");
     }
 
     /* Full details shown ONLY after passing validation. */
+    //claim validated ---> show this
     public String getFullDetails() {
         return "++++++Complete Details Of The Item+++++"
-             + "\n  ID          : " + getItemID()
-             + "\n Category    : " + getCategory()
-             + "\n  Found at    : " + getLocation()
-             + "\n  Date        : " + getDate()
-             + "\n  Description : " + getDescription()
-             + "\n  Colour      : " + getColour()
-             + "\n  Brand       : " + getBrand()
-             + "\n  Mark        : " + getidentityMark()
-             + "\n  Finder      : " + getFinderName()
-             + "\n  Status      : " + getIsClaimed();
+             + getsummarydata()
+             + "\n  Finder         : " + getFinderName()
+             + "\n  Finder Contact : " + getFinderContact();
+            //maybe show its image too??
+
     }
 
 
@@ -88,19 +115,6 @@ public FoundItem(String name, String description, String location, String catego
             getLocation(),
             getDate()
             //all items in founditems are available for claim as claim items are moved it claimed class.
-        };
-    }
-
-    public Object[] getdetails()
-    {
-        //return those details here that would be visible when an item is clicked
-        //return image, owner name and his contact info and maybe email?
-        return new Object[] {
-            finder.getName(),
-            finder.getContact(),
-            finder.getEmail()
-            //there would be a button to claim this found item.
-            //when it is clicked, the other classes that will validate that claim will be used.
         };
     }
 */
