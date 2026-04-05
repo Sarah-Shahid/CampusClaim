@@ -30,6 +30,14 @@ public abstract class FoundItem extends Item {
     //setters
     public void setIsClaimed(Boolean claimed) {  this.isClaimed = claimed; }
     
+    public void setFinderName(String finderName) {
+        this.finderName = finderName;
+    }
+
+    public void setFinderContact(String finderContact) {
+        this.finderContact = finderContact;
+    }
+    
 //..........................methods..................
    
 //Reporter fills in the ANSWER sheet   →  registerDetails()
