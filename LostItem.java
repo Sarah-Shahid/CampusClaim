@@ -1,66 +1,98 @@
-// //import java.time.LocalDate;
-// //zoha
-// public class LostItem extends Item {
-//     //lost items cannot be claimed.
-//     //lost item should have hidden details. make it either using another class or use hashmap class.
-//     private User owner; //owner is the person who is posting their lost item
-//     //                    they shud also post a picture.
+import java.time.LocalDate;
+public class LostItem extends Item {
+    //private attributes
+   private String ownerName;
+   private String ownerContact;
+   private String description;
+   private String status; //either "Lost" or "Expired"
+   private String imagePath;
+   
+   //constant attributes
+   public final String Status_Lost = "Lost";
+   public final String Status_Expired = "Expired";
 
-  
-  
-//   private String ownerName;
-//   private String ownerContact;   // phone or email
+   // ....................Constructors........................
+   //Empty constructor(will be used later for filr handling)
+   public LostItem(){
+    super();
+    this.status = Status_Lost;
+   }
+   
+   //constructor with attributes
+   public LostItem(String name, String location, String category, String ownerName, String ownerContact, String description, String status, String imagePath){
+    super(name, location, category);
+    this.ownerName = ownerName;
+    this.ownerContact = ownerContact;
+    this.description = description;
+    this.status = Status_Lost; //always starts as "Lost"
+    this.imagePath = imagePath;
 
-// public LostItem(String name, String description, String location, String category, String imagePath,String ownerName,String ownerContact){
-//     super( name, description, location, category, imagePath);
-//     this.ownerName = ownerName;
-//     this.ownerContact  = ownerContact;
-// }
-//    // .....................Getters.........................................
-//     public String getOwnerName()    { return ownerName; }
-//     public String getOwnerContact() { return ownerContact; }
-  
-// @Override 
-//     public String getsummarydata() {
-//         return "LOST  | ID: " + getItemID() 
-//              + " | Category: " + getCategory()
-//              + " | Lost at: "  + getLocation()
-//              + " | Date: "     + getDate()
-//              + " | Owner: "    + ownerName
-//              + " | Contact: "  + ownerContact
-//              + " | Description: "     + getDescription();
-//     }  
-  
-  
-  
-  
-  
-  
-  
-  
-//     /*  @Override
-//     public String getsummarydata()
-//     {
-//         //display those details here that would be visible in the list on mainmenu
-//         return new Object[] {
-//             getItemID(),
-//             getName(),
-//             getCategory(),
-//             getLocation(),
-//             getDate(),
-//         };
-//     }
+   }
+   
+    // .....................Getters............................
+    public String getOwnerName(){
+        return ownerName;
+    }
+    public String getOwnerContact(){
+        return ownerContact;
+    }
+    public String getDescription(){
+        return description;
+    }
+    public String getStatus(){
+        return status;
+    }
+    public String getImagePath(){
+        return imagePath;
+    }
 
-//     public Object[] getdetails()
-//     {
-//         //return those details here that would be visible when an item is clicked
-//         //return image, owner name and his contact info and maybe email?
-//         return new Object[] {
-//             getImagePath(), //for showing image of the lost item.
-//             owner.getName(),
-//             owner.getContact(),
-//             owner.getEmail()
-//         };
-//     }
-// */
-// }
+    // .....................Setters.........................................
+    public void setOwnerName(String ownerName){
+         this.ownerName = ownerName;
+    }
+    public void setOwnerContact(String ownerContact){
+         this.ownerContact = ownerContact;
+    }
+    public void setDescription(String  description){
+         this.description = description;
+    }
+    public void setImagePath(String imagePath){
+         this.imagePath = imagePath;
+    }
+    
+    // .................Expiry............................
+    // checks if 30 days have passed since the item was reported
+    // returns true if expired, false if still active
+    public boolean isExpired() {
+        return LocalDate.now().isAfter(getDate().plusDays(30));
+    }
+    
+    // used when the list will be displayed. Only shows item if it was reported less than 30 days ago
+    public boolean isActive() {
+        return !isExpired(); //active means not expired
+    }
+  
+ @Override 
+     public String getsummarydata() {
+        //if 30 days have passed it will show "Expired" otherwise the status is still "Lost"
+        String displayStatus = isExpired() ? Status_Expired : Status_Lost;
+               return "LOST  | ID: " + getItemID()
+              + " | Name: "        + getName() 
+              + " | Category: " + getCategory()
+              + " | Lost at: "  + getLocation()
+              + " | Date: "     + getDate()
+              + " | Status: "      + displayStatus
+              + " | Owner: "    + ownerName
+              + " | Contact: "  + ownerContact
+              + " | Description: "     + getDescription();
+     } 
+
+     // full details shown when item is clicked in console menu. Each field has its own line
+    public String getDetails() {
+    return "  ID      : " + getItemID()  + "\n"
+         + "  Name    : " + getName()    + "\n"
+         + "  Owner   : " + ownerName    + "\n"
+         + "  Contact : " + ownerContact + "\n"
+         + "  Image   : " + (imagePath != null ? imagePath : "None");
+    }
+}
