@@ -11,7 +11,7 @@ public abstract class Item {
     //private String owner;  //do we need this attribute? what shud be the type.
 
     //make constructors.
-    Item () {} //no arg constructor
+    Item () { itemID = (++counter);} //no arg constructor
 
     Item (String name, String location, String category)
     {

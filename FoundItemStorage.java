@@ -16,39 +16,40 @@ public class FoundItemStorage {
 
     //METHODS
     //1) Adds an item to the FindItem list
-public void addFoundItem(FoundItem founditem){
-foundItemsarray.add(founditem);
-historyArray.add(founditem); //adds in both lists
-}
-    //2) To find the item using id
-public FoundItem findbyID(int id){
-for (FoundItem item :foundItemsarray ){ //enhanced for loop
-    if(id== item.getItemID()){
-        return item; //searches only the original copy
+    public void addFoundItem(FoundItem founditem){
+        foundItemsarray.add(founditem);
+        historyArray.add(founditem); //adds in both lists
     }
-}
-  return null;
-}
 
-    //3) Display the list of found item that were ever there, even those who got claimed
-public ArrayList<FoundItem> historyoffoundItem(){
-    return new ArrayList<>(historyArray); //makes a copy of the histpry arraylist
-}
+    //2) To find the item using id
+    public FoundItem findbyID(int id){
+        for (FoundItem item : foundItemsarray ){ //enhanced for loop
+            if(id == item.getItemID()){
+                return item;  //searches only the original copy 
+            }
+        }
+            //no item with this id exists.
+            return null;
+        }
+
+    //3) Display the list of found item that were ever there, even those that got claimed
+    public ArrayList<FoundItem> historyoffoundItem(){
+        return new ArrayList<>(historyArray); //makes a copy of the history arraylist
+    }
 
     //4) To set the items claimed as claimed items 
-public boolean markAsClaimed(int id){
-FoundItem item = findbyID(id);
-    if(!(item == null)){
-        item.setIsClaimed(true);
-        foundItemsarray.remove(item); //removes that item from found list
-        return true;
+    public boolean markAsClaimed(int id){
+        FoundItem item = findbyID(id);
+        if(!(item == null)){
+            item.setIsClaimed(true);
+            foundItemsarray.remove(item); //removes that item from found list
+            return true;
+        }
+        return false;
     }
- return false;
-}
 
     //5) To access the Un-claimed items in found
-public ArrayList<FoundItem> getAllItems() {
+    public ArrayList<FoundItem> getAllItems() {
         return foundItemsarray; //showing the original
     }
-
 }
