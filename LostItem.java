@@ -8,8 +8,8 @@ public class LostItem extends Item {
    private String imagePath;
    
    //constant attributes
-   public final String Status_Lost = "Lost";
-   public final String Status_Expired = "Expired";
+   public static final String Status_Lost = "Lost";
+   public static final String Status_Expired = "Expired";
 
    // ....................Constructors........................
    //Empty constructor(will be used later for filr handling)
