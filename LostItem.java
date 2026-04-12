@@ -1,5 +1,11 @@
 import java.time.LocalDate;
 public class LostItem extends Item {
+    //final strings for categories
+    public static final String Category_1 = "Physical Items";
+    public static final String Category_2 = "Electonics";
+    public static final String Category_3 = "Documents";
+    public static final String Category_4 = "Valuables";
+
     //private attributes
    private String ownerName;
    private String ownerContact;
@@ -19,7 +25,7 @@ public class LostItem extends Item {
    }
    
    //constructor with attributes
-   public LostItem(String name, String location, String category, String ownerName, String ownerContact, String description, String status, String imagePath){
+   public LostItem(String name, String location, String category, String ownerName, String ownerContact, String description, String imagePath){
     super(name, location, category);
     this.ownerName = ownerName;
     this.ownerContact = ownerContact;
@@ -72,27 +78,30 @@ public class LostItem extends Item {
         return !isExpired(); //active means not expired
     }
   
- @Override 
-     public String getsummarydata() {
-        //if 30 days have passed it will show "Expired" otherwise the status is still "Lost"
-        String displayStatus = isExpired() ? Status_Expired : Status_Lost;
-               return "LOST  | ID: " + getItemID()
-              + " | Name: "        + getName() 
-              + " | Category: " + getCategory()
-              + " | Lost at: "  + getLocation()
-              + " | Date: "     + getDate()
-              + " | Status: "      + displayStatus
-              + " | Owner: "    + ownerName
-              + " | Contact: "  + ownerContact
-              + " | Description: "     + getDescription();
-     } 
+// shows on main menu
+@Override
+public String getsummarydata() {
+    String displayStatus = isExpired() ? Status_Expired : Status_Lost;
+    return "ID: "          + getItemID()
+         + " | Name: "     + getName()
+         + " | Category: " + getCategory()
+         + " | Lost at: "  + getLocation()
+         + " | Date: "     + getDate()
+         + " | Status: "   + displayStatus;
+}
 
-     // full details shown when item is clicked in console menu. Each field has its own line
-    public String getDetails() {
-    return "  ID      : " + getItemID()  + "\n"
-         + "  Name    : " + getName()    + "\n"
-         + "  Owner   : " + ownerName    + "\n"
-         + "  Contact : " + ownerContact + "\n"
-         + "  Image   : " + (imagePath != null ? imagePath : "None");
-    }
+// shows full info when item is clicked 
+public String getDetails() {
+    String displayStatus = isExpired() ? Status_Expired : Status_Lost;
+    return "  ID          : " + getItemID()    + "\n"
+         + "  Name        : " + getName()      + "\n"
+         + "  Category    : " + getCategory()  + "\n"
+         + "  Lost at     : " + getLocation()  + "\n"
+         + "  Date        : " + getDate()      + "\n"
+         + "  Status      : " + displayStatus  + "\n"
+         + "  Description : " + description    + "\n"
+         + "  Owner       : " + ownerName      + "\n"
+         + "  Contact     : " + ownerContact   + "\n"
+         + "  Image       : " + (imagePath != null ? imagePath : "None");
+}
 }

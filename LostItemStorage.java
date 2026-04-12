@@ -43,5 +43,44 @@ public class LostItemStorage {
         refreshLists();
         return expiredItems;
     }
-    //Categories arraylist still to be added
+
+    //-----------filter active items by category--------------
+     public ArrayList<LostItem> getActiveByCategory(String category) {
+
+        // always refresh first so expired items are already moved out
+        refreshLists();
+
+        ArrayList<LostItem> matchingActive = new ArrayList<>();
+
+        // loop through every active item
+        for (LostItem item : activeItems) {
+
+            // check if category matches what is requested
+            // equalsIgnoreCase handles "electronics" and "Electronics"
+            if (item.getCategory().equalsIgnoreCase(category)) {
+
+                //ifmatch found add it to result
+                matchingActive.add(item);
+            }
+            //if no match then skip to next item
+        }
+        return matchingActive;
+    }
+
+    //-----------filter expired items by category--------------
+    public ArrayList<LostItem> getExpiredByCategory(String category) {
+        refreshLists();
+
+        // list to hold matching expired items
+        ArrayList<LostItem> matchingExpired = new ArrayList<>();
+
+        // loop through expired items
+        for (LostItem item : expiredItems) {
+            if (item.getCategory().equalsIgnoreCase(category)) {
+                matchingExpired.add(item);
+            }
+        }
+
+        return matchingExpired;
+    }
 }
