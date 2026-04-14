@@ -58,10 +58,32 @@ public class ItemService {
         foundStorage.addFoundItemToLists(item); //item will be added to both arrayLists.
     }
 
+    //calling the alr made methods
     public ArrayList <FoundItem> getAvailableFoundItems () {
         return foundStorage.getAllItems();
     }
     
+    public FoundItem findFoundItemByID(int id) {
+    return foundStorage.findbyID(id); 
+    }
 
+    public String processClaim(int id, Map<String, String> claimantAnswers) {
+    FoundItem item = foundStorage.findbyID(id); // directly using yours
+
+    // validation checks
+
+    if (item == null)        return "Item is not found!";
+    if (item.getIsClaimed()) return "The item is already claimed!";
+        
+    //to see the approval or rejection of validation questions
+
+    boolean approved = item.verifyClaims(claimantAnswers);
+
+    if (approved) {
+        foundStorage.markAsClaimed(id); 
+        return "THE CLAIM IS APPROVED";
+    }
+    return "THE CLAIM IS REJECTED";
+}
     
 }

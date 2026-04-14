@@ -173,8 +173,8 @@ public class ConsoleUI {
         }
 
         //when list is non-empty
-        for (FoundItem item : items) {
-            System.out.println(item.getsummarydata());
+        for (FoundItem fitem : items) {
+            System.out.println(fitem.getsummarydata());
             System.out.println("-----------------------");
         }
 
@@ -182,7 +182,77 @@ public class ConsoleUI {
     }
 
 
-    private void menuClaimItem()       { }      //summiya
+
+    private void menuClaimItem()       { 
+
+    System.out.println("\n     CLAIM ITEM       ");
+    
+
+    // 1. show all available items so user knows what IDs exist
+    ArrayList<FoundItem> items = itemServiceObj.getAvailableFoundItems();
+    
+    if (items.isEmpty()) {
+        System.out.println("No items available to claim.");
+        return;
+    }
+    
+    for (FoundItem item : items) {
+        System.out.println(item.getsummarydata());
+        System.out.println("-----------------------");
+    }
+
+        FoundItem item = null;
+        int id= 0;
+
+        //loop thru till it gets a valid input
+        while (item == null) {
+        System.out.print("\nEnter item ID to claim: ");
+        String input = scanner.nextLine().trim();
+
+    // check manually if every character is a digit
+    if (!input.matches("\\d+")) { // \\d means "a digit" (0-9). +  means "one or more"
+        System.out.println("Invalid. Please enter a number.");
+        continue; // go back to top of loop
+    }
+
+    id = Integer.parseInt(input);
+    item = itemServiceObj.findFoundItemByID(id);
+
+    if (item == null) {
+        System.out.println("No item found with that ID. Try again.");
+    }
+        }
+
+    // 4. ask validation questions ; category specific, using polymorphism
+    Map<String, String> questions = item.getValidationQuestions();
+    Map<String, String> claimantAnswers = new LinkedHashMap<>();
+
+    System.out.println("\nAnswer the following questions to verify ownership:\n");
+    for (Map.Entry<String, String> entry : questions.entrySet()) {
+        System.out.print(entry.getValue() + " ");
+        String answer = scanner.nextLine().trim();
+        claimantAnswers.put(entry.getKey(), answer);
+    }
+
+    // 5. process; all logic handled in ItemService
+    String result = itemServiceObj.processClaim(id, claimantAnswers);
+
+    // 6. show result
+    System.out.println("\n" + result);
+    
+    // if approved, show finder contact so they can collect item
+    if (result.equals("THE CLAIM IS APPROVED")) {
+        System.out.println(item.getFullDetails());
+    }
+    }      
+
+
+
+
+
+
+
+
     private void menuReportLostItem()  { }      //zoha
     private void menuViewLostItems()   { }      //zoha
 
