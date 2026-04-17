@@ -58,9 +58,26 @@ public class FoundItemStorage {
         }
         return claimed;
     }
-    
+
     //5) To access the Un-claimed items in found
     public ArrayList<FoundItem> getAllItems() {
         return foundItemsarray; //showing the original
     }
+
+    public void loadData(ArrayList<FoundItem> items) {
+        historyArray.addAll(items); // everything goes in history
+
+        for (FoundItem item : items) {
+            if (!item.getIsClaimed()) {
+                foundItemsarray.add(item); // only unclaimed go in foundItem list.
+            }
+            // claimed items stay in historyArray only
+        }
+    }
+
+    public ArrayList<FoundItem> getAllItemsForSave() {
+        return historyArray; //this array contains everything so can be directly used 
+        //                     save all found items in a file.
+    }
+
 }

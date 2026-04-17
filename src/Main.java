@@ -1,18 +1,28 @@
-// Main.java — wires everything together
 public class Main {
     public static void main(String[] args) {
+        //load counter so IDs starts from where it 
+        //was left off when program was last terminated.
+        int savedCounter = FileHandler.loadCounter();
+        Item.setCounter(savedCounter);
 
-        // 1. create storage
+        // 1. create storage for both lost and found items
         FoundItemStorage foundStorage = new FoundItemStorage();
         LostItemStorage  lostStorage  = new LostItemStorage();
 
-        // 2. pass storage into ItemService
+        foundStorage.loadData(FileHandler.loadFoundItems());
+        lostStorage.loadData(FileHandler.loadLostItems());
         ItemService itemService = new ItemService(foundStorage, lostStorage);
 
-        // 3. pass ItemService into ConsoleUI
         ConsoleUI ui = new ConsoleUI(itemService);
 
-        // 4. start the program
+        //start the program
+        //loop will continue until user exits
         ui.start();
+
+        //save all data from memory when user exits.
+        //call savefiles
+        FileHandler.saveFoundItems(foundStorage.getAllItemsForSave());
+        FileHandler.saveLostItems(lostStorage.getAllItemsForSave());
+        FileHandler.saveCounter(Item.getCounter());
     }
 }

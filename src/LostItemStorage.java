@@ -83,4 +83,24 @@ public class LostItemStorage {
 
         return matchingExpired;
     }
+
+    //methods to save and load lost items.
+    public void loadData(ArrayList<LostItem> items) {
+        // on load, sort them back into active/expired correctly
+        for (LostItem item : items) {
+            if (item.isExpired()) {
+                expiredItems.add(item);
+            } else {
+                activeItems.add(item);
+            }
+        }
+    }
+
+    public ArrayList<LostItem> getAllItemsForSave() {
+        ArrayList<LostItem> all = new ArrayList<>();
+        all.addAll(activeItems);
+        all.addAll(expiredItems);
+        return all;
+    }
+
 }

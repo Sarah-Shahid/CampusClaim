@@ -1,7 +1,11 @@
+import java.io.Serializable; //import required so it can implement this.
 import java.time.LocalDate;
 
-public abstract class Item {
-    private static int counter = 100;
+public abstract class Item implements Serializable {
+
+    private static final long serialVersionUID = 1L; // version tag
+    private static int counter = 100; // will be managed by FileHandler
+
     private int itemID;
     private String name;
     private String location;
@@ -15,8 +19,7 @@ public abstract class Item {
 
     Item (String name, String location, String category)
     {
-        itemID = (++counter); //later fix: save it to file handling so the counter doesnt start
-        //                       from 100 again when u restart the program.
+        itemID = (++counter); 
         this.name = name;
         this.location = location;
         this.category = category;
@@ -26,6 +29,14 @@ public abstract class Item {
     }
 
     //make getters setters for all attributes.
+
+    public static int getCounter() {
+        return counter;
+    }
+
+    public static void setCounter(int value) {
+        counter = value;
+    }
 
     public int getItemID() { return itemID; }
     public void setItemID(int itemID) {
