@@ -48,6 +48,17 @@ public class FoundItemStorage {
         return false;
     }
 
+    //a method that returns all claimed items for display 
+    public ArrayList <FoundItem> getClaimedItems () {
+        ArrayList <FoundItem> claimed = new ArrayList<>();
+        for (FoundItem item : historyArray) {
+            if (item.getIsClaimed()) {
+                claimed.add(0, item);
+            }
+        }
+        return claimed;
+    }
+    
     //5) To access the Un-claimed items in found
     public ArrayList<FoundItem> getAllItems() {
         return foundItemsarray; //showing the original

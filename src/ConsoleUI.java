@@ -30,8 +30,9 @@ public class ConsoleUI {
             System.out.println("1. Report Found Item");
             System.out.println("2. View Found Items");
             System.out.println("3. Claim Item");
-            System.out.println("4. Report Lost Item");
-            System.out.println("5. View Lost Items");
+            System.out.println("4. View All Claimed Items");
+            System.out.println("5. Report Lost Item");
+            System.out.println("6. View Lost Items");
             System.out.println("0. Exit");
             System.out.print("Enter choice: ");
 
@@ -41,8 +42,9 @@ public class ConsoleUI {
                 case "1" -> menuReportFoundItem();
                 case "2" -> menuViewFoundItems();
                 case "3" -> menuClaimItem();
-                case "4" -> menuReportLostItem();
-                case "5" -> menuViewLostItems();
+                case "4" -> menuViewClaimedItem();
+                case "5" -> menuReportLostItem();
+                case "6" -> menuViewLostItems();
                 case "0" -> {
                     System.out.println("THANKYOU. You are exiting the program.");
                     return;      //exits the start() method.
@@ -328,6 +330,25 @@ public class ConsoleUI {
         System.out.println("  Status      : " + item.getStatus());
     }    
 
+    private void menuViewClaimedItem() {
+        System.out.println("\n=======================");
+        System.out.println("   CLAIMED ITEMS LIST  ");
+        System.out.println("=======================");
+
+        ArrayList<FoundItem> items = itemServiceObj.getClaimedItems();
+
+        if (items.isEmpty()) {
+            System.out.println("No items have been claimed yet.");
+            return;
+        }
+
+        for (FoundItem item : items) {
+            System.out.println(item.getsummarydata());
+            System.out.println("-----------------------");
+        }
+
+        System.out.println("TOTAL CLAIMED: " + items.size());
+    }
 
     private void menuViewLostItems() {
         System.out.println("\n=======================");

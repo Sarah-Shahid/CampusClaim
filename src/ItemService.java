@@ -85,6 +85,10 @@ public class ItemService {
         return "THE CLAIM IS REJECTED";
     }
 
+    public ArrayList<FoundItem> getClaimedItems() {
+        return foundStorage.getClaimedItems();
+    }
+
     // lost item methods
     public LostItem registerLostItem(String name, String location, String category,
                                       String ownerName, String ownerContact,
