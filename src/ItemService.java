@@ -1,53 +1,48 @@
-//this serves as the class that will link gui to our logic, because with gui, you cant use
-//console and scanner and println statements.
-
-//this is the class consoleUI uses to access data and storage.
-//will also be used by GUI class using the same methods defined here
-//which are also being called by consoleUI class
-
-//FOR EXAMPLE: for claimItem Menu:
-//1. "Enter item ID:"                 → TALK TO USER   → ConsoleUI
-// 2. read ID from scanner            → TALK TO USER   → ConsoleUI
-// 3. find item by ID                 → LOGIC          → ItemService
-// 4. check if already claimed        → LOGIC          → ItemService
-// 5. get validation questions        → LOGIC          → ItemService
-// 6. show questions, collect answers → TALK TO USER   → ConsoleUI
-// 7. compare answers                 → LOGIC          → ItemService
-// 8. mark as claimed                 → LOGIC          → ItemService
-// 9. show result                     → TALK TO USER   → ConsoleUI
-
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.ArrayList;
 
 public class ItemService {
 
-    // storage passed in from Main — not created here
     private FoundItemStorage foundStorage;
     private LostItemStorage lostStorage;
+
+    // counters for system report on dashboard
+    private int totalFoundRegistered = 0;
+    private int totalLostRegistered  = 0;
+    private int totalClaimed         = 0;
 
     public ItemService(FoundItemStorage foundStorage, LostItemStorage lostStorage) {
         this.foundStorage = foundStorage;
         this.lostStorage  = lostStorage;
     }
 
-    //GUI buttons will later call these methods directly.
+    // ── counter setters (called from Main after loading saved data) ──
+    public void setTotalFoundRegistered(int val) { this.totalFoundRegistered = val; }
+    public void setTotalLostRegistered(int val)  { this.totalLostRegistered  = val; }
+    public void setTotalClaimed(int val)         { this.totalClaimed         = val; }
 
-    public FoundItem createFoundItem (int choice) {
+    // ── counter getters (used by GUI for dashboard) ──
+    public int getTotalFoundRegistered() { return totalFoundRegistered; }
+    public int getTotalLostRegistered()  { return totalLostRegistered;  }
+    public int getTotalClaimed()         { return totalClaimed;         }
+
+    public FoundItem createFoundItem(int choice) {
         return switch (choice) {
             case 1 -> new Category02(); // Electronics
-            case 2 -> new Category04(); // accessories
-            case 3 -> new Category01(); // clothing
-            case 4 -> new Category03(); // documents
-            case 5 -> new Category01(); // keys
-            case 6 -> new Category01(); // bags
-            case 7 -> new Category04(); // jewelry
-            case 8 -> new Category03(); // books
+            case 2 -> new Category04(); // Accessories
+            case 3 -> new Category01(); // Clothing
+            case 4 -> new Category03(); // Documents
+            case 5 -> new Category01(); // Keys
+            case 6 -> new Category01(); // Bags
+            case 7 -> new Category04(); // Jewelry
+            case 8 -> new Category03(); // Books
             default -> null;
         };
     }
 
-    public void setBasicFields (FoundItem item, String name, String location, String category, String finderContact, String finderName) {
+    public void setBasicFields(FoundItem item, String name, String location, String category,
+                                String finderContact, String finderName) {
         item.setName(name);
         item.setLocation(location);
         item.setCategory(category);
@@ -56,18 +51,18 @@ public class ItemService {
         item.setFinderContact(finderContact);
     }
 
-    public void registerFoundItem (Map <String , String> answers, FoundItem item) {
+    public void registerFoundItem(Map<String, String> answers, FoundItem item) {
         item.registerDetails(answers);
-        foundStorage.addFoundItem(item); //item will be added to both arrayLists.
+        foundStorage.addFoundItem(item);
+        totalFoundRegistered++; // increment counter
     }
 
-    //calling the alr made methods
-    public ArrayList <FoundItem> getAvailableFoundItems () {
+    public ArrayList<FoundItem> getAvailableFoundItems() {
         return foundStorage.getAllItems();
     }
-    
+
     public FoundItem findFoundItemByID(int id) {
-        return foundStorage.findbyID(id); 
+        return foundStorage.findbyID(id);
     }
 
     public String processClaim(int id, Map<String, String> claimantAnswers) {
@@ -79,7 +74,8 @@ public class ItemService {
         boolean approved = item.verifyClaims(claimantAnswers);
 
         if (approved) {
-            foundStorage.markAsClaimed(id); 
+            foundStorage.markAsClaimed(id);
+            totalClaimed++; // increment counter
             return "THE CLAIM IS APPROVED";
         }
         return "THE CLAIM IS REJECTED";
@@ -89,12 +85,13 @@ public class ItemService {
         return foundStorage.getClaimedItems();
     }
 
-    // lost item methods
+    // ── Lost item methods ──
     public LostItem registerLostItem(String name, String location, String category,
                                       String ownerName, String ownerContact,
                                       String description, String imagePath) {
         LostItem item = new LostItem(name, location, category, ownerName, ownerContact, description, imagePath);
         lostStorage.addLostItem(item);
+        totalLostRegistered++; // increment counter
         return item;
     }
 

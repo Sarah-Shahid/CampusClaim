@@ -3,3 +3,4 @@ lib/
 *.class
 *.ser
 counter.txt
+run.bat

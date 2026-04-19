@@ -1,25 +1,19 @@
-//this class saves and loads all data
-//called by FoundItemStorage and LostItemStorage
-
-//java .io library contains all interfaces and classes that can be used for
-//input output operations and serialization
 import java.io.*;
 import java.util.ArrayList;
 
 public class FileHandler {
 
-    private static final String FOUND_FILE   = "foundItems.ser";
-    private static final String LOST_FILE    = "lostItems.ser";
-    private static final String COUNTER_FILE = "counter.txt";
-    //for counter, just need to store one number so that counter wont restart
-    //using .txt file cuz no objects involved.
+    private static final String FOUND_FILE    = "foundItems.ser";
+    private static final String LOST_FILE     = "lostItems.ser";
+    private static final String COUNTER_FILE  = "counter.txt";
+    private static final String COUNTERS_FILE = "statCounters.txt"; // found/lost/claimed counts
 
-    //saving methods. these are called when the program is exiting.
+    // ── SAVE ────────────────────────────────────────────────────────
+
     public static void saveFoundItems(ArrayList<FoundItem> items) {
         try (ObjectOutputStream out = new ObjectOutputStream(
                 new FileOutputStream(FOUND_FILE))) {
             out.writeObject(items);
-            System.out.println("Found items saved.");
         } catch (IOException e) {
             System.out.println("Error saving found items: " + e.getMessage());
         }
@@ -29,7 +23,6 @@ public class FileHandler {
         try (ObjectOutputStream out = new ObjectOutputStream(
                 new FileOutputStream(LOST_FILE))) {
             out.writeObject(items);
-            System.out.println("Lost items saved.");
         } catch (IOException e) {
             System.out.println("Error saving lost items: " + e.getMessage());
         }
@@ -43,16 +36,26 @@ public class FileHandler {
         }
     }
 
-    //Loading methods, called when the program starts.
-    //loads everthing from the files into the memory (ArrayLists) again.
-    
+    // saves found/lost/claimed stat counters
+    public static void saveCounters(int totalFound, int totalLost, int totalClaimed) {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(COUNTERS_FILE))) {
+            writer.println(totalFound);
+            writer.println(totalLost);
+            writer.println(totalClaimed);
+        } catch (IOException e) {
+            System.out.println("Error saving stat counters: " + e.getMessage());
+        }
+    }
+
+    // ── LOAD ────────────────────────────────────────────────────────
+
     @SuppressWarnings("unchecked")
     public static ArrayList<FoundItem> loadFoundItems() {
         try (ObjectInputStream in = new ObjectInputStream(
                 new FileInputStream(FOUND_FILE))) {
             return (ArrayList<FoundItem>) in.readObject();
         } catch (FileNotFoundException e) {
-            return new ArrayList<>(); // first run, no file yet
+            return new ArrayList<>();
         } catch (IOException | ClassNotFoundException e) {
             System.out.println("Error loading found items: " + e.getMessage());
             return new ArrayList<>();
@@ -65,7 +68,7 @@ public class FileHandler {
                 new FileInputStream(LOST_FILE))) {
             return (ArrayList<LostItem>) in.readObject();
         } catch (FileNotFoundException e) {
-            return new ArrayList<>(); // first run, no file yet
+            return new ArrayList<>();
         } catch (IOException | ClassNotFoundException e) {
             System.out.println("Error loading lost items: " + e.getMessage());
             return new ArrayList<>();
@@ -73,14 +76,28 @@ public class FileHandler {
     }
 
     public static int loadCounter() {
-        try (BufferedReader reader = new BufferedReader(
-                new FileReader(COUNTER_FILE))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(COUNTER_FILE))) {
             return Integer.parseInt(reader.readLine().trim());
         } catch (FileNotFoundException e) {
-            return 100; // first run, start from 100
+            return 100;
         } catch (IOException e) {
             System.out.println("Error loading counter: " + e.getMessage());
             return 100;
+        }
+    }
+
+    // returns [totalFound, totalLost, totalClaimed]
+    public static int[] loadCounters() {
+        try (BufferedReader reader = new BufferedReader(new FileReader(COUNTERS_FILE))) {
+            int found   = Integer.parseInt(reader.readLine().trim());
+            int lost    = Integer.parseInt(reader.readLine().trim());
+            int claimed = Integer.parseInt(reader.readLine().trim());
+            return new int[]{found, lost, claimed};
+        } catch (FileNotFoundException e) {
+            return new int[]{0, 0, 0};
+        } catch (IOException e) {
+            System.out.println("Error loading stat counters: " + e.getMessage());
+            return new int[]{0, 0, 0};
         }
     }
 }

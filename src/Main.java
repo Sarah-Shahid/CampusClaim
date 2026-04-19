@@ -1,28 +1,33 @@
+import javafx.application.Application;
+
 public class Main {
     public static void main(String[] args) {
-        //load counter so IDs starts from where it 
-        //was left off when program was last terminated.
+
+        // 1. load counter so IDs start from where they left off
         int savedCounter = FileHandler.loadCounter();
         Item.setCounter(savedCounter);
 
-        // 1. create storage for both lost and found items
+        // 2. create storage
         FoundItemStorage foundStorage = new FoundItemStorage();
         LostItemStorage  lostStorage  = new LostItemStorage();
 
         foundStorage.loadData(FileHandler.loadFoundItems());
         lostStorage.loadData(FileHandler.loadLostItems());
+
+        // 3. create service
         ItemService itemService = new ItemService(foundStorage, lostStorage);
 
-        ConsoleUI ui = new ConsoleUI(itemService);
+        // 4. load saved counters
+        int[] counters = FileHandler.loadCounters();
+        itemService.setTotalFoundRegistered(counters[0]);
+        itemService.setTotalLostRegistered(counters[1]);
+        itemService.setTotalClaimed(counters[2]);
 
-        //start the program
-        //loop will continue until user exits
-        ui.start();
+        // 5. pass service to GUI and launch
+        GUI.setItemService(itemService);
+        GUI.setFoundStorage(foundStorage);
+        GUI.setLostStorage(lostStorage);
 
-        //save all data from memory when user exits.
-        //call savefiles
-        FileHandler.saveFoundItems(foundStorage.getAllItemsForSave());
-        FileHandler.saveLostItems(lostStorage.getAllItemsForSave());
-        FileHandler.saveCounter(Item.getCounter());
+        Application.launch(GUI.class, args);
     }
 }
