@@ -1,1120 +1,1020 @@
 import javafx.application.Application;
-import javafx.application.Platform;
-import javafx.geometry.*;
-import javafx.scene.*;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
-import javafx.scene.paint.*;
-import javafx.scene.shape.*;
-import javafx.scene.text.*;
-import javafx.stage.*;
-import javafx.collections.*;
-import javafx.scene.control.cell.PropertyValueFactory;
-import java.util.*;
-import java.util.stream.Collectors;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.stage.FileChooser;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public class GUI extends Application {
 
-    // ── static refs passed from Main ────────────────────────────────
-    private static ItemService    itemService;
+    // ------- Colour palette (from prototype) -------
+    private static final String BG       = "#d7e4d9";
+    private static final String ACCENT   = "#235347";
+    private static final String ACCENT_L = "#235347CC"; // slightly transparent
+    private static final String ACCENT_X = "#23534780"; // lighter transparent
+    private static final String DARK_TXT = "#151f28";
+    private static final String LIGHT_TXT= "#f4f6fc";
+
+    // ------- service references injected from Main -------
+    private static ItemService itemService;
     private static FoundItemStorage foundStorage;
-    private static LostItemStorage  lostStorage;
+    private static LostItemStorage lostStorage;
 
-    public static void setItemService(ItemService s)        { itemService  = s; }
-    public static void setFoundStorage(FoundItemStorage fs) { foundStorage = fs; }
-    public static void setLostStorage(LostItemStorage ls)   { lostStorage  = ls; }
+    public static void setItemService(ItemService s)    { itemService   = s; }
+    public static void setFoundStorage(FoundItemStorage s){ foundStorage = s; }
+    public static void setLostStorage(LostItemStorage s){ lostStorage   = s; }
 
-    // ── colour palette from prototype ───────────────────────────────
-    private static final String BG          = "#d7e4d9";
-    private static final String DARK_GREEN  = "#235347";
-    private static final String MID_GREEN   = "#6e9e8c";   // semi-transparent panel
-    private static final String LIGHT_PANEL = "#b5cfc0";   // lighter panel bg
-    private static final String TEXT_DARK   = "#151f28";
-    private static final String TEXT_LIGHT  = "#f4f6fc";
+    // ------- main stage / root container -------
+    private Stage stage;
+    private BorderPane root;
+    private static final String FONT = "Playfair Display";
 
-    private Stage primaryStage;
+    // 8 found-item categories (mapped to ItemService.createFoundItem choice)
+    private static final String[] FOUND_CATEGORIES = {
+        "Electronics", "Accessories", "Clothing", "Documents",
+        "Keys", "Bags", "Jewelry", "Books"
+    };
 
-    // ── track which "lost view" type user picked (active/expired) for back nav
-    private boolean viewingActiveLost = true;
+    // 4 lost-item categories
+    private static final String[] LOST_CATEGORIES = {
+        LostItem.Category_1, LostItem.Category_2,
+        LostItem.Category_3, LostItem.Category_4
+    };
 
     @Override
     public void start(Stage stage) {
-        this.primaryStage = stage;
-        stage.setTitle("CampusClaim");
-        stage.setWidth(900);
-        stage.setHeight(600);
-        stage.setResizable(false);
+        this.stage = stage;
+        this.root = new BorderPane();
+        root.setStyle("-fx-background-color:" + BG + ";");
 
-        showDashboard();
+        Scene scene = new Scene(root, 1000, 650);
+        stage.setTitle("CampusClaim — Lost & Found");
+        stage.setScene(scene);
         stage.show();
 
-        // save on window close
-        stage.setOnCloseRequest(e -> saveAll());
+        showDashboard();
+
+        // save data on close
+        stage.setOnCloseRequest(e -> persistAll());
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 1 — DASHBOARD
-    // ════════════════════════════════════════════════════════════════
-    private void showDashboard() {
-        BorderPane root = new BorderPane();
-        root.setStyle("-fx-background-color:" + BG + ";");
-
-        // header
-        root.setTop(buildHeader("Dashboard"));
-
-        // left — system report
-        VBox report = new VBox(12);
-        report.setPadding(new Insets(20, 15, 20, 20));
-        report.setPrefWidth(220);
-
-        Label reportTitle = new Label("System Report");
-        reportTitle.setStyle("-fx-font-size:18px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-
-        int found   = itemService.getTotalFoundRegistered();
-        int lost    = itemService.getTotalLostRegistered();
-        int claimed = itemService.getTotalClaimed();
-        double eff  = (found == 0) ? 0.0 : (claimed * 100.0 / found);
-
-        VBox reportBox = new VBox(10);
-        reportBox.setPadding(new Insets(12));
-        reportBox.setStyle("-fx-background-color:" + LIGHT_PANEL + ";-fx-background-radius:10;");
-
-        reportBox.getChildren().addAll(
-            reportStatLabel("Found Items", String.valueOf(found)),
-            reportStatLabel("Lost Items",  String.valueOf(lost)),
-            reportStatLabel("Claimed",     String.valueOf(claimed)),
-            buildEfficiencyBar(eff)
-        );
-
-        report.getChildren().addAll(reportTitle, reportBox);
-
-        // centre — main menu buttons
-        VBox centre = new VBox(20);
-        centre.setAlignment(Pos.CENTER);
-        centre.setPadding(new Insets(20));
-
-        // welcome box
-        Label welcome = new Label(
-            "Welcome to the smart Lost & Found hub, a sleek,\n" +
-            "all-in-one dashboard where you can instantly report\n" +
-            "lost items, browse found treasures, and track\n" +
-            "successful claims.");
-        welcome.setStyle("-fx-font-size:13px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_LIGHT + ";-fx-text-alignment:center;");
-        StackPane welcomeBox = new StackPane(welcome);
-        welcomeBox.setPadding(new Insets(14));
-        welcomeBox.setStyle("-fx-background-color:" + MID_GREEN + ";-fx-background-radius:12;");
-
-        Label menuTitle = new Label("Main Menu");
-        menuTitle.setStyle("-fx-font-size:20px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-
-        HBox btnRow = new HBox(20);
-        btnRow.setAlignment(Pos.CENTER);
-        btnRow.setPadding(new Insets(15));
-        btnRow.setStyle("-fx-background-color:" + MID_GREEN + ";-fx-background-radius:14;");
-
-        Button btnFound   = bigMenuButton("Found Items",   "📦");
-        Button btnLost    = bigMenuButton("Lost Items",    "🏷");
-        Button btnClaimed = bigMenuButton("Claimed Items", "✅");
-
-        btnFound.setOnAction(e   -> showFoundItemsMenu());
-        btnLost.setOnAction(e    -> showLostItemsMenu());
-        btnClaimed.setOnAction(e -> showClaimedItemsMenu());
-
-        btnRow.getChildren().addAll(btnFound, btnLost, btnClaimed);
-
-        Label clickHint = new Label("Click to open!");
-        clickHint.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:" + TEXT_DARK + ";");
-
-        centre.getChildren().addAll(welcomeBox, menuTitle, btnRow, clickHint);
-
-        // thank you bottom right
-        Label thanks = new Label("Thank you");
-        thanks.setStyle("-fx-background-color:" + MID_GREEN + ";-fx-background-radius:20;" +
-                        "-fx-padding:8 18;-fx-font-family:'Georgia';-fx-font-size:14px;-fx-text-fill:" + TEXT_DARK + ";");
-        BorderPane.setAlignment(thanks, Pos.BOTTOM_RIGHT);
-        BorderPane.setMargin(thanks, new Insets(0, 15, 12, 0));
-
-        root.setLeft(report);
-        root.setCenter(centre);
-        root.setBottom(thanks);
-
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 2 — FOUND ITEMS MENU
-    // ════════════════════════════════════════════════════════════════
-    private void showFoundItemsMenu() {
-        primaryStage.setScene(buildTwoButtonPage(
-            "Found Items",
-            "View Found Items",  () -> showViewFoundItems(),
-            "Report Found Item", () -> showReportFoundItem(),
-            () -> showDashboard()
-        ));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 3 — VIEW FOUND ITEMS
-    // ════════════════════════════════════════════════════════════════
-    private void showViewFoundItems() {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader("View Found Items"));
-
-        ArrayList<FoundItem> items = itemService.getAvailableFoundItems();
-
-        TableView<FoundItem> table = buildFoundItemTable(items);
-
-        VBox content = new VBox(table);
-        content.setPadding(new Insets(15, 20, 15, 20));
-        VBox.setVgrow(table, Priority.ALWAYS);
-
-        root.setCenter(content);
-        root.setBottom(backBar(() -> showFoundItemsMenu()));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 4 & 5 — REPORT FOUND ITEM (step 1: basic info + category)
-    // ════════════════════════════════════════════════════════════════
-    private void showReportFoundItem() {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader("Found Item Registration"));
-
-        VBox form = new VBox(14);
-        form.setPadding(new Insets(20, 40, 20, 40));
-        form.setStyle("-fx-background-color:" + LIGHT_PANEL + ";-fx-background-radius:14;");
-
-        TextField tfName     = styledField();
-        ComboBox<String> cbCat = styledCombo(
-            "Electronics","Accessories","Clothing","Documents","Keys","Bags","Jewelry","Books");
-        TextField tfLocation = styledField();
-        TextField tfFinderName = styledField();
-        TextField tfContact  = styledField();
-
-        // dim other fields until category selected — as per prototype
-        tfLocation.setDisable(true);
-        tfFinderName.setDisable(true);
-        tfContact.setDisable(true);
-
-        cbCat.setOnAction(e -> {
-            boolean selected = cbCat.getValue() != null;
-            tfLocation.setDisable(!selected);
-            tfFinderName.setDisable(!selected);
-            tfContact.setDisable(!selected);
-        });
-
-        form.getChildren().addAll(
-            formRow("Item Name",     tfName),
-            formRow("Category:",     cbCat),
-            formRow("Location:",     tfLocation),
-            formRow("Your Name:",    tfFinderName),
-            formRow("Your Contact:", tfContact)
-        );
-
-        // submit button goes to page 6 (validation questions)
-        Button btnSubmit = submitButton("Next");
-        btnSubmit.setOnAction(e -> {
-            String name     = tfName.getText().trim();
-            String catStr   = cbCat.getValue();
-            String location = tfLocation.getText().trim();
-            String finder   = tfFinderName.getText().trim();
-            String contact  = tfContact.getText().trim();
-
-            if (name.isEmpty() || catStr == null || location.isEmpty()
-                    || finder.isEmpty() || contact.isEmpty()) {
-                showError("Please fill in all fields.");
-                return;
-            }
-            if (!contact.matches("03\\d{9}")) {
-                showError("Enter a valid 11-digit Pakistani number starting with 03.");
-                return;
-            }
-
-            int catChoice = getCategoryChoice(catStr);
-            FoundItem item = itemService.createFoundItem(catChoice);
-            itemService.setBasicFields(item, name, location, catStr, contact, finder);
-
-            showReportFoundValidation(item);
-        });
-
-        VBox outer = new VBox(20, form, btnSubmit);
-        outer.setPadding(new Insets(20));
-        outer.setAlignment(Pos.TOP_CENTER);
-        VBox.setVgrow(form, Priority.ALWAYS);
-
-        root.setCenter(outer);
-        root.setBottom(backBar(() -> showFoundItemsMenu()));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 6 — REPORT FOUND ITEM (step 2: validation questions)
-    // ════════════════════════════════════════════════════════════════
-    private void showReportFoundValidation(FoundItem item) {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader("Found Item Registration"));
-
-        Map<String, String> questions = item.getValidationQuestions();
-        Map<String, TextField> fieldMap = new LinkedHashMap<>();
-
-        VBox form = new VBox(14);
-        form.setPadding(new Insets(20));
-        form.setStyle("-fx-background-color:" + LIGHT_PANEL + ";-fx-background-radius:14;");
-
-        Label hint = new Label("These answers will be used for validation when someone tries to claim this item.");
-        hint.setStyle("-fx-font-size:13px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        hint.setWrapText(true);
-        form.getChildren().add(hint);
-
-        for (Map.Entry<String, String> entry : questions.entrySet()) {
-            TextField tf = styledField();
-            fieldMap.put(entry.getKey(), tf);
-            form.getChildren().add(formRow(entry.getValue(), tf));
-        }
-
-        Button btnSubmit = submitButton("Submit");
-        btnSubmit.setOnAction(e -> {
-            Map<String, String> answers = new LinkedHashMap<>();
-            for (Map.Entry<String, TextField> entry : fieldMap.entrySet()) {
-                String val = entry.getValue().getText().trim();
-                if (val.isEmpty()) {
-                    showError("Please answer all questions.");
-                    return;
-                }
-                answers.put(entry.getKey(), val);
-            }
-            try {
-                itemService.registerFoundItem(answers, item);
-                showSuccessDialog("Registration Successful!", () -> showDashboard());
-            } catch (Exception ex) {
-                showSuccessDialog("Registration Failed\nPlease try again later.", () -> showDashboard());
-            }
-        });
-
-        ScrollPane scroll = new ScrollPane(form);
-        scroll.setFitToWidth(true);
-        scroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
-
-        VBox outer = new VBox(15, scroll, btnSubmit);
-        outer.setPadding(new Insets(15, 20, 10, 20));
-        outer.setAlignment(Pos.TOP_CENTER);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-
-        root.setCenter(outer);
-        root.setBottom(backBar(() -> showReportFoundItem()));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 7 — CLAIMED ITEMS MENU
-    // ════════════════════════════════════════════════════════════════
-    private void showClaimedItemsMenu() {
-        primaryStage.setScene(buildTwoButtonPage(
-            "Claim Items",
-            "View Claimed Items", () -> showViewClaimedItems(),
-            "Claim an Item",      () -> showClaimAnItem(),
-            () -> showDashboard()
-        ));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 8 — VIEW CLAIMED ITEMS
-    // ════════════════════════════════════════════════════════════════
-    private void showViewClaimedItems() {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader("View Claimed Items"));
-
-        ArrayList<FoundItem> items = itemService.getClaimedItems();
-
-        if (items.isEmpty()) {
-            Label empty = new Label("No items have been claimed yet.");
-            empty.setStyle("-fx-font-size:16px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-            StackPane sp = new StackPane(empty);
-            sp.setPadding(new Insets(40));
-            root.setCenter(sp);
-        } else {
-            TableView<FoundItem> table = buildFoundItemTable(items);
-            VBox content = new VBox(table);
-            content.setPadding(new Insets(15, 20, 15, 20));
-            VBox.setVgrow(table, Priority.ALWAYS);
-            root.setCenter(content);
-        }
-
-        root.setBottom(backBar(() -> showClaimedItemsMenu()));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 9 — CLAIM AN ITEM (show list + "click to claim" button)
-    // ════════════════════════════════════════════════════════════════
-    private void showClaimAnItem() {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader("Claim an Item"));
-
-        ArrayList<FoundItem> items = itemService.getAvailableFoundItems();
-        TableView<FoundItem> table = buildFoundItemTable(items);
-
-        Button btnClaim = new Button("Click to claim an Item");
-        btnClaim.setStyle("-fx-background-color:" + DARK_GREEN + ";-fx-background-radius:25;" +
-                          "-fx-text-fill:" + TEXT_LIGHT + ";-fx-font-size:16px;" +
-                          "-fx-font-family:'Georgia';-fx-padding:12 30;");
-        btnClaim.setOnAction(e -> showEnterClaimIdDialog(items));
-
-        VBox content = new VBox(12, table, btnClaim);
-        content.setPadding(new Insets(15, 20, 15, 20));
-        content.setAlignment(Pos.CENTER);
-        VBox.setVgrow(table, Priority.ALWAYS);
-
-        root.setCenter(content);
-        root.setBottom(backBar(() -> showClaimedItemsMenu()));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // dialog: enter item ID to claim
-    private void showEnterClaimIdDialog(ArrayList<FoundItem> items) {
-        Stage dialog = new Stage();
-        dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.setTitle("Claim Item");
-        dialog.setResizable(false);
-
-        VBox box = new VBox(12);
-        box.setPadding(new Insets(20));
-        box.setStyle("-fx-background-color:" + BG + ";");
-        box.setAlignment(Pos.CENTER);
-
-        Label lbl = new Label("Enter the ID of the item you want to claim.");
-        lbl.setStyle("-fx-font-size:14px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        lbl.setWrapText(true);
-
-        TextField tfId = styledField();
-        tfId.setPromptText("Item ID");
-        tfId.setMaxWidth(200);
-
-        Button btnNext = new Button("Next");
-        btnNext.setStyle("-fx-background-color:" + DARK_GREEN + ";-fx-background-radius:20;" +
-                         "-fx-text-fill:" + TEXT_LIGHT + ";-fx-font-family:'Georgia';-fx-padding:8 24;");
-
-        btnNext.setOnAction(e -> {
-            String input = tfId.getText().trim();
-            if (input.isEmpty() || !input.matches("\\d+")) {
-                showError("Please enter a valid numeric ID.");
-                return;
-            }
-            int id = Integer.parseInt(input);
-            FoundItem item = itemService.findFoundItemByID(id);
-            if (item == null || item.getIsClaimed()) {
-                showError("No available item found with that ID.");
-                return;
-            }
-            dialog.close();
-            showClaimValidationQuestions(item);
-        });
-
-        box.getChildren().addAll(lbl, tfId, btnNext);
-        dialog.setScene(new Scene(box, 360, 200));
-        dialog.showAndWait();
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 10 — CLAIM VALIDATION QUESTIONS
-    // ════════════════════════════════════════════════════════════════
-    private void showClaimValidationQuestions(FoundItem item) {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader("Claim an Item"));
-
-        Map<String, String> questions = item.getValidationQuestions();
-        Map<String, TextField> fieldMap = new LinkedHashMap<>();
-
-        VBox form = new VBox(14);
-        form.setPadding(new Insets(20));
-        form.setStyle("-fx-background-color:" + LIGHT_PANEL + ";-fx-background-radius:14;");
-
-        Label hint = new Label("Answer these for validation.");
-        hint.setStyle("-fx-font-size:13px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        form.getChildren().add(hint);
-
-        for (Map.Entry<String, String> entry : questions.entrySet()) {
-            TextField tf = styledField();
-            fieldMap.put(entry.getKey(), tf);
-            form.getChildren().add(formRow(entry.getValue(), tf));
-        }
-
-        Button btnNext = submitButton("Next");
-        btnNext.setOnAction(e -> {
-            // check all fields filled
-            for (Map.Entry<String, TextField> entry : fieldMap.entrySet()) {
-                if (entry.getValue().getText().trim().isEmpty()) {
-                    showError("Please answer all questions.");
-                    return;
-                }
-            }
-            Map<String, String> claimantAnswers = new LinkedHashMap<>();
-            for (Map.Entry<String, TextField> entry : fieldMap.entrySet()) {
-                claimantAnswers.put(entry.getKey(), entry.getValue().getText().trim());
-            }
-            String result = itemService.processClaim(item.getItemID(), claimantAnswers);
-
-            if (result.equals("THE CLAIM IS APPROVED")) {
-                showClaimResultDialog(true, item);
-            } else {
-                showClaimResultDialog(false, null);
-            }
-        });
-
-        ScrollPane scroll = new ScrollPane(form);
-        scroll.setFitToWidth(true);
-        scroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
-
-        VBox outer = new VBox(15, scroll, btnNext);
-        outer.setPadding(new Insets(15, 20, 10, 20));
-        outer.setAlignment(Pos.TOP_CENTER);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-
-        root.setCenter(outer);
-        root.setBottom(backBar(() -> showClaimAnItem()));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // claim result dialog
-    private void showClaimResultDialog(boolean approved, FoundItem item) {
-        Stage dialog = new Stage();
-        dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.setTitle(approved ? "Claim Approved" : "Claim Rejected");
-        dialog.setResizable(false);
-
-        VBox box = new VBox(14);
-        box.setPadding(new Insets(24));
-        box.setStyle("-fx-background-color:" + BG + ";");
-        box.setAlignment(Pos.CENTER);
-
-        Label msg;
-        if (approved) {
-            msg = new Label("Your claim has been validated. Congratulations!\n\n" +
-                            "Finder: " + item.getFinderName() + "\n" +
-                            "Contact: " + item.getFinderContact() + "\n\n" +
-                            "Please recover your item.");
-        } else {
-            msg = new Label("The item is not yours.\nClaim not validated.");
-        }
-        msg.setStyle("-fx-font-size:14px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";-fx-text-alignment:center;");
-        msg.setWrapText(true);
-        msg.setTextAlignment(TextAlignment.CENTER);
-
-        Button btnClose = new Button("Close");
-        btnClose.setStyle("-fx-background-color:" + DARK_GREEN + ";-fx-background-radius:20;" +
-                          "-fx-text-fill:" + TEXT_LIGHT + ";-fx-font-family:'Georgia';-fx-padding:8 24;");
-        btnClose.setOnAction(e -> {
-            dialog.close();
-            showDashboard();
-        });
-
-        box.getChildren().addAll(msg, btnClose);
-        dialog.setScene(new Scene(box, 380, 240));
-        dialog.showAndWait();
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 11 — LOST ITEMS MENU
-    // ════════════════════════════════════════════════════════════════
-    private void showLostItemsMenu() {
-        primaryStage.setScene(buildTwoButtonPage(
-            "Lost Items",
-            "View Lost Items",    () -> showLostItemsCategories(),
-            "Report a lost Item", () -> showReportLostItem(),
-            () -> showDashboard()
-        ));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 12 — LOST ITEMS CATEGORIES (active vs expired)
-    // ════════════════════════════════════════════════════════════════
-    private void showLostItemsCategories() {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader("Lost Items Categories"));
-
-        VBox centre = new VBox(20);
-        centre.setAlignment(Pos.CENTER);
-        centre.setPadding(new Insets(30));
-
-        HBox btnRow = new HBox(30);
-        btnRow.setAlignment(Pos.CENTER);
-        btnRow.setPadding(new Insets(20));
-        btnRow.setStyle("-fx-background-color:" + MID_GREEN + ";-fx-background-radius:14;");
-
-        Button btnActive  = bigMenuButton("View Active\nlost Items", "");
-        Button btnExpired = bigMenuButton("View Expired\nlost Items", "");
-
-        btnActive.setOnAction(e  -> { viewingActiveLost = true;  showLostItemsList(true);  });
-        btnExpired.setOnAction(e -> { viewingActiveLost = false; showLostItemsList(false); });
-
-        btnRow.getChildren().addAll(btnActive, btnExpired);
-
-        Label activeDesc  = new Label("Active Items: Items registered within the last 30 days.");
-        Label expiredDesc = new Label("Expired Items: Items registered before the last 30 days.");
-        activeDesc.setStyle("-fx-font-size:13px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        expiredDesc.setStyle("-fx-font-size:13px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-
-        centre.getChildren().addAll(btnRow, activeDesc, expiredDesc);
-
-        root.setCenter(centre);
-        root.setBottom(backBar(() -> showLostItemsMenu()));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 13 / 14 — ACTIVE or EXPIRED LOST ITEMS LIST with filters
-    // ════════════════════════════════════════════════════════════════
-    private void showLostItemsList(boolean active) {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader(active ? "Active Lost Items" : "Expired Lost Items"));
-
-        // category filter buttons
-        String[] cats = {LostItem.Category_2, LostItem.Category_1, LostItem.Category_3, LostItem.Category_4};
-        HBox filterRow = new HBox(10);
-        filterRow.setPadding(new Insets(10, 20, 5, 20));
-        filterRow.setAlignment(Pos.CENTER_LEFT);
-
-        // state: selected category
-        final String[] selectedCat = {null};
-
-        // table placeholder
-        VBox tableHolder = new VBox();
-        tableHolder.setPadding(new Insets(0, 20, 10, 20));
-        VBox.setVgrow(tableHolder, Priority.ALWAYS);
-
-        Runnable refreshTable = () -> {
-            ArrayList<LostItem> items;
-            if (selectedCat[0] == null) {
-                items = active ? itemService.getActiveLostItems() : itemService.getExpiredLostItems();
-            } else {
-                items = active
-                    ? itemService.getActiveLostByCategory(selectedCat[0])
-                    : itemService.getExpiredLostByCategory(selectedCat[0]);
-            }
-            tableHolder.getChildren().setAll(buildLostItemTable(items, active));
-        };
-
-        List<Button> filterBtns = new ArrayList<>();
-        for (String cat : cats) {
-            Button btn = new Button(cat);
-            btn.setStyle("-fx-background-color:" + LIGHT_PANEL + ";-fx-background-radius:20;" +
-                         "-fx-font-family:'Georgia';-fx-padding:6 14;-fx-text-fill:" + TEXT_DARK + ";");
-            btn.setOnAction(e -> {
-                if (cat.equals(selectedCat[0])) {
-                    // deselect
-                    selectedCat[0] = null;
-                    filterBtns.forEach(b -> b.setOpacity(1.0));
-                } else {
-                    selectedCat[0] = cat;
-                    filterBtns.forEach(b -> b.setOpacity(0.45));
-                    btn.setOpacity(1.0);
-                }
-                refreshTable.run();
-            });
-            filterBtns.add(btn);
-            filterRow.getChildren().add(btn);
-        }
-
-        Label filterHint = new Label("To filter by categories, click on a category above.");
-        filterHint.setStyle("-fx-font-size:12px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        filterHint.setPadding(new Insets(0, 20, 4, 20));
-
-        refreshTable.run();
-
-        VBox content = new VBox(filterRow, filterHint, tableHolder);
-        VBox.setVgrow(tableHolder, Priority.ALWAYS);
-
-        root.setCenter(content);
-        root.setBottom(backBar(() -> showLostItemsCategories()));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 15 — VIEW LOST ITEM PICTURE
-    // ════════════════════════════════════════════════════════════════
-    private void showLostItemPicture(String imagePath, boolean fromActive) {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader("View Lost Item Picture"));
-
-        VBox centre = new VBox();
-        centre.setAlignment(Pos.CENTER);
-        centre.setPadding(new Insets(20));
-
-        Rectangle imgBox = new Rectangle(420, 310);
-        imgBox.setArcWidth(20);
-        imgBox.setArcHeight(20);
-        imgBox.setFill(Color.web(DARK_GREEN));
-
-        Label placeholder = new Label(imagePath != null ? imagePath : "It will display the picture here");
-        placeholder.setStyle("-fx-font-size:14px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_LIGHT + ";");
-
-        StackPane imgPane = new StackPane(imgBox, placeholder);
-
-        centre.getChildren().add(imgPane);
-        root.setCenter(centre);
-        root.setBottom(backBar(() -> showLostItemsList(fromActive)));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // PAGE 16 / 17 / 18 — REPORT LOST ITEM
-    // ════════════════════════════════════════════════════════════════
-    private void showReportLostItem() {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader("Lost Item Registration"));
-
-        TextField tfName     = styledField();
-        ComboBox<String> cbCat = styledCombo(
-            LostItem.Category_1, LostItem.Category_2, LostItem.Category_3, LostItem.Category_4);
-        TextField tfLocation = styledField();
-        TextField tfDesc     = styledField();
-        TextField tfOwner    = styledField();
-        TextField tfContact  = styledField();
-
-        // dim fields until category chosen
-        tfLocation.setDisable(true);
-        tfDesc.setDisable(true);
-        tfOwner.setDisable(true);
-        tfContact.setDisable(true);
-
-        cbCat.setOnAction(e -> {
-            boolean sel = cbCat.getValue() != null;
-            tfLocation.setDisable(!sel);
-            tfDesc.setDisable(!sel);
-            tfOwner.setDisable(!sel);
-            tfContact.setDisable(!sel);
-        });
-
-        // image path — add button
-        final String[] imagePathHolder = {null};
-        Label lblImageStatus = new Label("No image selected");
-        lblImageStatus.setStyle("-fx-font-size:12px;-fx-text-fill:" + TEXT_DARK + ";");
-
-        Button btnAdd = new Button("Add");
-        btnAdd.setStyle("-fx-background-color:" + LIGHT_PANEL + ";-fx-background-radius:20;" +
-                        "-fx-padding:6 20;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        btnAdd.setOnAction(e -> {
-            FileChooser fc = new FileChooser();
-            fc.setTitle("Select Image");
-            fc.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("Image Files", "*.jpg", "*.jpeg", "*.png"));
-            java.io.File file = fc.showOpenDialog(primaryStage);
-            if (file != null) {
-                imagePathHolder[0] = file.getAbsolutePath();
-                lblImageStatus.setText(file.getName());
-            }
-        });
-
-        HBox imageRow = new HBox(10, btnAdd, lblImageStatus);
-        imageRow.setAlignment(Pos.CENTER_LEFT);
-
-        VBox form = new VBox(14);
-        form.setPadding(new Insets(20, 40, 20, 40));
-        form.setStyle("-fx-background-color:" + LIGHT_PANEL + ";-fx-background-radius:14;");
-        form.getChildren().addAll(
-            formRow("Item Name",        tfName),
-            formRow("Category:",        cbCat),
-            formRow("Last Location:",   tfLocation),
-            formRow("Description:",     tfDesc),
-            formRow("Owner's Name:",    tfOwner),
-            formRow("Owner's Contact:", tfContact),
-            formRow("Picture (optional):\nJPG/PNG only", imageRow)
-        );
-
-        Button btnSubmit = submitButton("Submit");
-        btnSubmit.setOnAction(e -> {
-            String name    = tfName.getText().trim();
-            String catStr  = cbCat.getValue();
-            String loc     = tfLocation.getText().trim();
-            String desc    = tfDesc.getText().trim();
-            String owner   = tfOwner.getText().trim();
-            String contact = tfContact.getText().trim();
-
-            if (name.isEmpty() || catStr == null || loc.isEmpty()
-                    || desc.isEmpty() || owner.isEmpty() || contact.isEmpty()) {
-                showError("Please fill in all required fields.");
-                return;
-            }
-            if (!contact.matches("03\\d{9}")) {
-                showError("Enter a valid 11-digit Pakistani number starting with 03.");
-                return;
-            }
-            try {
-                itemService.registerLostItem(name, loc, catStr, owner, contact, desc, imagePathHolder[0]);
-                showSuccessDialog("Registration Successful!", () -> showDashboard());
-            } catch (Exception ex) {
-                showSuccessDialog("Registration Failed\nPlease try again later.", () -> showDashboard());
-            }
-        });
-
-        ScrollPane scroll = new ScrollPane(form);
-        scroll.setFitToWidth(true);
-        scroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
-
-        VBox outer = new VBox(15, scroll, btnSubmit);
-        outer.setPadding(new Insets(15, 20, 10, 20));
-        outer.setAlignment(Pos.TOP_CENTER);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-
-        root.setCenter(outer);
-        root.setBottom(backBar(() -> showLostItemsMenu()));
-        primaryStage.setScene(new Scene(root));
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // HELPER — build lost item table with Picture column
-    // ════════════════════════════════════════════════════════════════
-    @SuppressWarnings("unchecked")
-    private TableView<LostItem> buildLostItemTable(ArrayList<LostItem> items, boolean fromActive) {
-        TableView<LostItem> table = new TableView<>();
-        table.setStyle("-fx-font-family:'Georgia';-fx-font-size:13px;");
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-
-        TableColumn<LostItem, Integer> colId = new TableColumn<>("Item ID");
-        colId.setCellValueFactory(d -> new javafx.beans.property.SimpleIntegerProperty(d.getValue().getItemID()).asObject());
-
-        TableColumn<LostItem, String> colName = new TableColumn<>("Name");
-        colName.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getName()));
-
-        TableColumn<LostItem, String> colCat = new TableColumn<>("Category");
-        colCat.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getCategory()));
-
-        TableColumn<LostItem, String> colDate = new TableColumn<>("Date");
-        colDate.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getDate().toString()));
-
-        TableColumn<LostItem, String> colLoc = new TableColumn<>("Location");
-        colLoc.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getLocation()));
-
-        // Picture column — "Available" is clickable if imagePath not null
-        TableColumn<LostItem, Void> colPic = new TableColumn<>("Picture");
-        colPic.setCellFactory(col -> new javafx.scene.control.TableCell<>() {
-            @Override
-            protected void updateItem(Void item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
-                    setGraphic(null);
-                    return;
-                }
-                LostItem li = (LostItem) getTableRow().getItem();
-                if (li.getImagePath() != null) {
-                    Hyperlink link = new Hyperlink("Available");
-                    link.setStyle("-fx-font-family:'Georgia';-fx-text-fill:" + DARK_GREEN + ";");
-                    link.setOnAction(e -> showLostItemPicture(li.getImagePath(), fromActive));
-                    setGraphic(link);
-                } else {
-                    Label lbl = new Label("Not Available");
-                    lbl.setStyle("-fx-font-family:'Georgia';-fx-text-fill:#777;");
-                    setGraphic(lbl);
-                }
-            }
-        });
-
-        table.getColumns().addAll(colId, colName, colCat, colDate, colLoc, colPic);
-        table.setItems(FXCollections.observableArrayList(items));
-        styleTable(table);
-        return table;
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // HELPER — build found item table
-    // ════════════════════════════════════════════════════════════════
-    @SuppressWarnings("unchecked")
-    private TableView<FoundItem> buildFoundItemTable(ArrayList<FoundItem> items) {
-        TableView<FoundItem> table = new TableView<>();
-        table.setStyle("-fx-font-family:'Georgia';-fx-font-size:13px;");
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-
-        TableColumn<FoundItem, Integer> colId = new TableColumn<>("Item ID");
-        colId.setCellValueFactory(d -> new javafx.beans.property.SimpleIntegerProperty(d.getValue().getItemID()).asObject());
-
-        TableColumn<FoundItem, String> colName = new TableColumn<>("Name");
-        colName.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getName()));
-
-        TableColumn<FoundItem, String> colCat = new TableColumn<>("Category");
-        colCat.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getCategory()));
-
-        TableColumn<FoundItem, String> colDate = new TableColumn<>("Date");
-        colDate.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getDate().toString()));
-
-        TableColumn<FoundItem, String> colLoc = new TableColumn<>("Location");
-        colLoc.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getLocation()));
-
-        TableColumn<FoundItem, String> colStatus = new TableColumn<>("Status");
-        colStatus.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(
-            d.getValue().getIsClaimed() ? "Claimed" : "Not Claimed"));
-
-        table.getColumns().addAll(colId, colName, colCat, colDate, colLoc, colStatus);
-        table.setItems(FXCollections.observableArrayList(items));
-        styleTable(table);
-        return table;
-    }
-
-
-    private <T> void styleTable(TableView<T> table) {
-        table.setStyle(
-            "-fx-background-color:transparent;" +
-            "-fx-table-cell-border-color:" + MID_GREEN + ";" +
-            "-fx-font-family:'Georgia';"
-        );
-
-        table.setRowFactory(tv -> {
-            TableRow<T> row = new TableRow<>();
-
-            row.styleProperty().bind(
-                javafx.beans.binding.Bindings.when(row.indexProperty().greaterThanOrEqualTo(0))
-                .then("-fx-background-color:" + (tv.getItems().indexOf(row.getItem()) % 2 == 0
-                    ? LIGHT_PANEL : MID_GREEN) + ";")
-                .otherwise("")
-            );
-
-            return row;
-        });
-    }
-
-
-    // ════════════════════════════════════════════════════════════════
-    // REUSABLE — two-big-button page (pages 2, 7, 11)
-    // ════════════════════════════════════════════════════════════════
-    private Scene buildTwoButtonPage(String title,
-                                     String leftLabel,  Runnable leftAction,
-                                     String rightLabel, Runnable rightAction,
-                                     Runnable backAction) {
-        BorderPane root = styledRoot();
-        root.setTop(buildHeader(title));
-
-        HBox btnRow = new HBox(40);
-        btnRow.setAlignment(Pos.CENTER);
-        btnRow.setPadding(new Insets(30));
-        btnRow.setStyle("-fx-background-color:" + MID_GREEN + ";-fx-background-radius:14;");
-
-        Button btnL = bigMenuButton(leftLabel,  "");
-        Button btnR = bigMenuButton(rightLabel, "");
-        btnL.setOnAction(e -> leftAction.run());
-        btnR.setOnAction(e -> rightAction.run());
-
-        btnRow.getChildren().addAll(btnL, btnR);
-
-        StackPane centre = new StackPane(btnRow);
-        centre.setPadding(new Insets(60, 80, 40, 80));
-
-        root.setCenter(centre);
-        root.setBottom(backBar(backAction));
-        return new Scene(root);
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // REUSABLE UI COMPONENTS
-    // ════════════════════════════════════════════════════════════════
-
-    private BorderPane styledRoot() {
-        BorderPane root = new BorderPane();
-        root.setStyle("-fx-background-color:" + BG + ";");
-        return root;
-    }
-
-    private VBox buildHeader(String title) {
-        Label lbl = new Label(title);
-        lbl.setStyle("-fx-font-size:22px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        lbl.setPadding(new Insets(16, 20, 4, 20));
-
-        Rectangle line1 = new Rectangle();
-        line1.setHeight(3);
-        line1.setFill(Color.web(TEXT_DARK));
-        line1.widthProperty().bind(primaryStage.widthProperty());
-
-        Rectangle line2 = new Rectangle();
-        line2.setHeight(6);
-        line2.setFill(Color.web(DARK_GREEN));
-        line2.widthProperty().bind(primaryStage.widthProperty());
-
-        VBox header = new VBox(lbl, line1, line2);
-        header.setStyle("-fx-background-color:" + BG + ";");
-        return header;
-    }
-
-    private HBox backBar(Runnable action) {
-        Button btn = new Button("← Back");
-        btn.setStyle("-fx-background-color:" + MID_GREEN + ";-fx-background-radius:20;" +
-                     "-fx-text-fill:" + TEXT_DARK + ";-fx-font-family:'Georgia';" +
-                     "-fx-font-size:14px;-fx-padding:8 20;");
-        btn.setOnAction(e -> action.run());
-
-        HBox bar = new HBox(btn);
-        bar.setAlignment(Pos.BOTTOM_RIGHT);
-        bar.setPadding(new Insets(8, 15, 12, 0));
-        return bar;
-    }
-
-    private Button bigMenuButton(String label, String icon) {
-        Button btn = new Button((icon.isEmpty() ? "" : icon + " ") + label);
-        btn.setStyle("-fx-background-color:" + DARK_GREEN + ";-fx-background-radius:16;" +
-                     "-fx-text-fill:" + TEXT_LIGHT + ";-fx-font-size:17px;" +
-                     "-fx-font-family:'Georgia';-fx-padding:40 30;-fx-wrap-text:true;" +
-                     "-fx-text-alignment:center;");
-        btn.setPrefWidth(200);
-        btn.setPrefHeight(150);
-        return btn;
-    }
-
-    private TextField styledField() {
-        TextField tf = new TextField();
-        tf.setStyle("-fx-background-color:" + DARK_GREEN + ";-fx-background-radius:25;" +
-                    "-fx-text-fill:" + TEXT_LIGHT + ";-fx-font-family:'Georgia';" +
-                    "-fx-font-size:14px;-fx-padding:8 16;");
-        tf.setPrefWidth(340);
-        return tf;
-    }
-
-    private ComboBox<String> styledCombo(String... options) {
-        ComboBox<String> cb = new ComboBox<>();
-        cb.getItems().addAll(options);
-        cb.setPromptText("Select a category  ▼");
-        cb.setStyle("-fx-background-color:" + DARK_GREEN + ";-fx-background-radius:25;" +
-                    "-fx-font-family:'Georgia';-fx-font-size:14px;-fx-text-fill:" + TEXT_LIGHT + ";");
-        cb.setPrefWidth(340);
-        return cb;
-    }
-
-    private HBox formRow(String labelText, javafx.scene.Node field) {
-        Label lbl = new Label(labelText);
-        lbl.setStyle("-fx-font-size:14px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        lbl.setPrefWidth(160);
-        lbl.setWrapText(true);
-        HBox row = new HBox(20, lbl, field);
-        row.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(field, Priority.ALWAYS);
-        return row;
-    }
-
-    private Button submitButton(String text) {
-        Button btn = new Button(text);
-        btn.setStyle("-fx-background-color:" + LIGHT_PANEL + ";-fx-background-radius:20;" +
-                     "-fx-text-fill:" + TEXT_DARK + ";-fx-font-family:'Georgia';" +
-                     "-fx-font-size:15px;-fx-padding:10 40;");
-        return btn;
-    }
-
-    private VBox reportStatLabel(String title, String value) {
-        Label t = new Label(title);
-        t.setStyle("-fx-font-size:14px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        Label v = new Label("(" + value + ")");
-        v.setStyle("-fx-font-size:12px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        VBox box = new VBox(2, t, v);
-        box.setAlignment(Pos.CENTER);
-        return box;
-    }
-
-    private VBox buildEfficiencyBar(double pct) {
-        Label title = new Label("Efficiency:");
-        title.setStyle("-fx-font-size:14px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-
-        StackPane bar = new StackPane();
-        bar.setPrefHeight(18);
-        bar.setMaxWidth(160);
-
-        Rectangle bg = new Rectangle(160, 18);
-        bg.setArcWidth(18); bg.setArcHeight(18);
-        bg.setFill(Color.web("#b0c4ba"));
-
-        double fillW = Math.max(0, Math.min(160, 160 * pct / 100.0));
-        Rectangle fill = new Rectangle(fillW, 18);
-        fill.setArcWidth(18); fill.setArcHeight(18);
-        fill.setFill(Color.web(DARK_GREEN));
-        StackPane.setAlignment(fill, Pos.CENTER_LEFT);
-
-        Label pctLabel = new Label(String.format("%.0f%%", pct));
-        pctLabel.setStyle("-fx-font-size:11px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        pctLabel.setPadding(new Insets(0, 0, 0, 170));
-
-        bar.getChildren().addAll(bg, fill);
-
-        HBox row = new HBox(8, bar, pctLabel);
-        row.setAlignment(Pos.CENTER_LEFT);
-
-        return new VBox(4, title, row);
-    }
-
-    // success/fail dialog matching colour theme
-    private void showSuccessDialog(String message, Runnable onClose) {
-        Stage dialog = new Stage();
-        dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.setTitle("Status");
-        dialog.setResizable(false);
-
-        VBox box = new VBox(16);
-        box.setPadding(new Insets(24));
-        box.setStyle("-fx-background-color:" + BG + ";-fx-border-color:" + DARK_GREEN +
-                     ";-fx-border-width:2;-fx-border-radius:12;-fx-background-radius:12;");
-        box.setAlignment(Pos.CENTER);
-
-        Label msg = new Label(message);
-        msg.setStyle("-fx-font-size:15px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";-fx-text-alignment:center;");
-        msg.setWrapText(true);
-        msg.setTextAlignment(TextAlignment.CENTER);
-
-        Button btnClose = new Button("Close");
-        btnClose.setStyle("-fx-background-color:" + DARK_GREEN + ";-fx-background-radius:20;" +
-                          "-fx-text-fill:" + TEXT_LIGHT + ";-fx-font-family:'Georgia';-fx-padding:8 24;");
-        btnClose.setOnAction(e -> {
-            dialog.close();
-            onClose.run();
-        });
-
-        box.getChildren().addAll(msg, btnClose);
-        dialog.setScene(new Scene(box, 340, 180));
-        dialog.showAndWait();
-    }
-
-    private void showError(String message) {
-        Stage dialog = new Stage();
-        dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.setTitle("Error");
-        dialog.setResizable(false);
-
-        VBox box = new VBox(14);
-        box.setPadding(new Insets(20));
-        box.setStyle("-fx-background-color:" + BG + ";");
-        box.setAlignment(Pos.CENTER);
-
-        Label msg = new Label(message);
-        msg.setStyle("-fx-font-size:14px;-fx-font-family:'Georgia';-fx-text-fill:" + TEXT_DARK + ";");
-        msg.setWrapText(true);
-        msg.setTextAlignment(TextAlignment.CENTER);
-
-        Button btn = new Button("OK");
-        btn.setStyle("-fx-background-color:" + DARK_GREEN + ";-fx-background-radius:20;" +
-                     "-fx-text-fill:" + TEXT_LIGHT + ";-fx-font-family:'Georgia';-fx-padding:7 22;");
-        btn.setOnAction(e -> dialog.close());
-
-        box.getChildren().addAll(msg, btn);
-        dialog.setScene(new Scene(box, 320, 160));
-        dialog.showAndWait();
-    }
-
-    // map category string to int choice for createFoundItem()
-    private int getCategoryChoice(String cat) {
-        return switch (cat) {
-            case "Electronics" -> 1;
-            case "Accessories" -> 2;
-            case "Clothing"    -> 3;
-            case "Documents"   -> 4;
-            case "Keys"        -> 5;
-            case "Bags"        -> 6;
-            case "Jewelry"     -> 7;
-            case "Books"       -> 8;
-            default            -> 1;
-        };
-    }
-
-    // save all data on exit
-    private void saveAll() {
+    private void persistAll() {
         FileHandler.saveFoundItems(foundStorage.getAllItemsForSave());
         FileHandler.saveLostItems(lostStorage.getAllItemsForSave());
         FileHandler.saveCounter(Item.getCounter());
         FileHandler.saveCounters(
             itemService.getTotalFoundRegistered(),
             itemService.getTotalLostRegistered(),
-            itemService.getTotalClaimed()
+            itemService.getTotalClaimed());
+    }
+
+    // =========================================================
+    //  Reusable styling helpers
+    // =========================================================
+    private Label title(String s) {
+        Label l = new Label(s);
+        l.setFont(Font.font(FONT, FontWeight.BOLD, 28));
+        l.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+        return l;
+    }
+    private Label subtitle(String s) {
+        Label l = new Label(s);
+        l.setFont(Font.font(FONT, FontWeight.NORMAL, 14));
+        l.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+        l.setWrapText(true);
+        return l;
+    }
+    private Label fieldLabel(String s) {
+        Label l = new Label(s);
+        l.setFont(Font.font(FONT, FontWeight.SEMI_BOLD, 14));
+        l.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+        return l;
+    }
+    private Button primaryBtn(String s) {
+        Button b = new Button(s);
+        b.setStyle("-fx-background-color:" + ACCENT + "; -fx-text-fill:" + LIGHT_TXT
+                + "; -fx-font-weight:bold; -fx-padding:8 22 8 22; -fx-background-radius:6;");
+        b.setOnMouseEntered(e -> b.setStyle("-fx-background-color:" + ACCENT_L + "; -fx-text-fill:" + LIGHT_TXT
+                + "; -fx-font-weight:bold; -fx-padding:8 22 8 22; -fx-background-radius:6;"));
+        b.setOnMouseExited(e -> b.setStyle("-fx-background-color:" + ACCENT + "; -fx-text-fill:" + LIGHT_TXT
+                + "; -fx-font-weight:bold; -fx-padding:8 22 8 22; -fx-background-radius:6;"));
+        return b;
+    }
+    private Button bigMenuBtn(String s) {
+        Button b = primaryBtn(s);
+        b.setMinSize(260, 150);
+        b.setPrefSize(260, 150);
+        b.setFont(Font.font(FONT, FontWeight.BOLD, 18));
+        return b;
+    }
+
+    /** Wraps a row of large menu buttons in a light-coloured rounded container,
+     *  centred horizontally so it aligns nicely with the page. */
+    private VBox wrapMenuRow(Button... buttons) {
+        HBox row = new HBox(35, buttons);
+        row.setAlignment(Pos.CENTER);
+
+        VBox box = new VBox(row);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(35, 50, 35, 50));
+        box.setStyle(
+            "-fx-background-color:" + ACCENT_X + ";" +
+            "-fx-background-radius:14;");
+        box.setMaxWidth(Region.USE_PREF_SIZE);
+
+        VBox outer = new VBox(box);
+        outer.setAlignment(Pos.CENTER);
+        outer.setPadding(new Insets(60, 40, 40, 40));
+        return outer;
+    }
+    private TextField inputField() {
+        TextField t = new TextField();
+        t.setStyle("-fx-background-color:" + LIGHT_TXT + "; -fx-text-fill:" + DARK_TXT
+                + "; -fx-border-color:" + ACCENT + "; -fx-border-radius:4; -fx-background-radius:4; -fx-padding:6;");
+        return t;
+    }
+    private TextArea textArea() {
+        TextArea t = new TextArea();
+        t.setStyle("-fx-control-inner-background:" + LIGHT_TXT + "; -fx-text-fill:" + DARK_TXT
+                + "; -fx-border-color:" + ACCENT + "; -fx-border-radius:4; -fx-background-radius:4;");
+        t.setPrefRowCount(3);
+        return t;
+    }
+
+    /** Page-name strip used on every page (Dashboard-style with thick rule). */
+    private VBox headerBar(String pageTitle) {
+        Label pg = new Label(pageTitle);
+        pg.setFont(Font.font(FONT, FontWeight.BOLD, 22));
+        pg.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+
+        // thick rule under the page name (same on every page)
+        Region rule = new Region();
+        rule.setMinHeight(5);
+        rule.setPrefHeight(5);
+        rule.setMaxHeight(5);
+        rule.setStyle("-fx-background-color:" + ACCENT + "; -fx-background-radius:3;");
+
+        VBox v = new VBox(6, pg, rule);
+        v.setPadding(new Insets(15, 30, 8, 30));
+        v.setStyle("-fx-background-color:" + BG + ";");
+        return v;
+    }
+
+    private HBox footerBar(Runnable backAction) {
+        Button back = primaryBtn("Back");
+        back.setOnAction(e -> backAction.run());
+        HBox h = new HBox(back);
+        h.setAlignment(Pos.CENTER_RIGHT);
+        h.setPadding(new Insets(15, 24, 20, 24));
+        return h;
+    }
+
+    private void setPage(javafx.scene.Node header, javafx.scene.Node center, javafx.scene.Node footer) {
+        root.setTop(header);
+        root.setCenter(center);
+        root.setBottom(footer);
+    }
+
+    /** Themed dialog (cream box, dark green pill OK button, Playfair Display). */
+    private void showThemedDialog(String windowTitle, String headerText, String bodyText, List<String> bulletLines) {
+        Stage dlg = new Stage();
+        dlg.initModality(Modality.APPLICATION_MODAL);
+        if (stage != null) dlg.initOwner(stage);
+        dlg.setTitle(windowTitle);
+        dlg.setResizable(false);
+
+        VBox content = new VBox(14);
+        content.setAlignment(Pos.CENTER);
+        content.setPadding(new Insets(35, 50, 30, 50));
+        content.setStyle(
+            "-fx-background-color: #eaf1ec;" +
+            "-fx-border-color:" + ACCENT + ";" +
+            "-fx-border-width:2;" +
+            "-fx-border-radius:10;" +
+            "-fx-background-radius:10;");
+
+        if (headerText != null && !headerText.isEmpty()) {
+            Label h = new Label(headerText);
+            h.setFont(Font.font(FONT, FontWeight.BOLD, 22));
+            h.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+            h.setWrapText(true);
+            h.setAlignment(Pos.CENTER);
+            h.setMaxWidth(560);
+            content.getChildren().add(h);
+        }
+
+        if (bodyText != null && !bodyText.isEmpty()) {
+            Label b = new Label(bodyText);
+            b.setFont(Font.font(FONT, FontWeight.NORMAL, 16));
+            b.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+            b.setWrapText(true);
+            b.setAlignment(Pos.CENTER);
+            b.setMaxWidth(520);
+            content.getChildren().add(b);
+        }
+
+        if (bulletLines != null && !bulletLines.isEmpty()) {
+            VBox lines = new VBox(8);
+            lines.setAlignment(Pos.CENTER_LEFT);
+            lines.setPadding(new Insets(6, 10, 6, 10));
+            for (String line : bulletLines) {
+                Label l = new Label(line);
+                l.setFont(Font.font(FONT, FontWeight.NORMAL, 16));
+                l.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+                lines.getChildren().add(l);
+            }
+            content.getChildren().add(lines);
+        }
+
+        Button ok = new Button("OK");
+        ok.setFont(Font.font(FONT, FontWeight.BOLD, 14));
+        String okBase = "-fx-background-color:" + ACCENT + "; -fx-text-fill:" + LIGHT_TXT
+            + "; -fx-padding:8 32 8 32; -fx-background-radius:30;";
+        String okHover= "-fx-background-color:" + ACCENT_L + "; -fx-text-fill:" + LIGHT_TXT
+            + "; -fx-padding:8 32 8 32; -fx-background-radius:30;";
+        ok.setStyle(okBase);
+        ok.setOnMouseEntered(e -> ok.setStyle(okHover));
+        ok.setOnMouseExited(e -> ok.setStyle(okBase));
+        ok.setOnAction(e -> dlg.close());
+
+        HBox btnRow = new HBox(ok);
+        btnRow.setAlignment(Pos.CENTER);
+        btnRow.setPadding(new Insets(8, 0, 0, 0));
+        content.getChildren().add(btnRow);
+
+        // Outer wrapper so the cream card sits on a neutral backdrop
+        StackPane outer = new StackPane(content);
+        outer.setPadding(new Insets(10));
+        outer.setStyle("-fx-background-color:#eef3ef;");
+
+        Scene s = new Scene(outer);
+        dlg.setScene(s);
+        dlg.sizeToScene();
+        dlg.showAndWait();
+    }
+
+    private void showError(String msg) {
+        showThemedDialog("Error", null, msg, null);
+    }
+    private void showInfo(String msg) {
+        showThemedDialog("Message", null, msg, null);
+    }
+
+    /** Pakistani contact validation: must be exactly 11 digits and start with 03. */
+    private boolean validateContact(String c) {
+        if (!c.matches("^03\\d{9}$")) {
+            showError("Enter a valid 11-digit Pakistani number starting with 03.");
+            return false;
+        }
+        return true;
+    }
+
+    /** Copy a picked image into a local "pictures" folder beside the program,
+     *  giving it a unique, safe filename. Returns the relative saved path
+     *  (e.g. "pictures/1714060000000_bag.jpg") or null on failure. */
+    private String saveImageLocally(File source) {
+        try {
+            File dir = new File("pictures");
+            if (!dir.exists() && !dir.mkdirs()) return null;
+
+            // Sanitize original filename: keep letters/digits/dot/dash/underscore only.
+            String safeName = source.getName().replaceAll("[^A-Za-z0-9._-]", "_");
+            String unique = System.currentTimeMillis() + "_" + safeName;
+
+            File dest = new File(dir, unique);
+            // Avoid extremely unlikely collision
+            int n = 1;
+            while (dest.exists()) {
+                dest = new File(dir, System.currentTimeMillis() + "_" + (n++) + "_" + safeName);
+            }
+            java.nio.file.Files.copy(
+                source.toPath(),
+                dest.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            // Return a relative path so it works no matter where the project lives.
+            return "pictures/" + dest.getName();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    /** Clean the raw getFullDetails() string into one "Key: Value" per line. */
+    private List<String> prettifyDetails(String raw) {
+        List<String> out = new ArrayList<>();
+        if (raw == null) return out;
+        // strip leading/trailing "+++ Complete Details Of The Item +++" markers
+        String s = raw.replaceAll("\\++\\s*Complete Details Of The Item\\s*\\++", " ");
+        String[] parts = s.split("[|\\n]");
+        for (String p : parts) {
+            String t = p.trim().replaceAll("\\s+:\\s*", ": ").replaceAll("\\s{2,}", " ");
+            if (t.isEmpty()) continue;
+            // friendlier key names
+            if (t.startsWith("ID:"))     t = "Item " + t;
+            else if (t.startsWith("Name:")) t = "Item " + t;
+            out.add(t);
+        }
+        return out;
+    }
+
+    // =========================================================
+    //  PAGE 1 — DASHBOARD
+    // =========================================================
+    private void showDashboard() {
+        VBox topStrip = headerBar("Dashboard");
+
+        // ---- Brand pill (left) + welcome card (right) ----
+        Label brandPill = new Label("CampusClaim");
+        brandPill.setFont(Font.font(FONT, FontWeight.BOLD, 30));
+        brandPill.setStyle(
+            "-fx-text-fill:" + LIGHT_TXT + ";" +
+            "-fx-background-color:" + ACCENT + ";" +
+            "-fx-background-radius:40;" +
+            "-fx-padding:14 40 14 40;");
+
+        Label welcome = new Label(
+            "Welcome to the smart Lost & Found hub , a sleek, all-in-one " +
+            "dashboard where you can instantly report lost items, browse " +
+            "found treasures, and track successful claims.");
+        welcome.setFont(Font.font(FONT, FontWeight.NORMAL, 14));
+        welcome.setStyle(
+            "-fx-text-fill:" + DARK_TXT + ";" +
+            "-fx-background-color:" + ACCENT_X + ";" +
+            "-fx-background-radius:14;" +
+            "-fx-padding:18 22 18 22;");
+        welcome.setWrapText(true);
+        welcome.setMaxWidth(440);
+
+        Region topSpacer = new Region();
+        HBox.setHgrow(topSpacer, Priority.ALWAYS);
+
+        HBox topRow = new HBox(20, brandPill, topSpacer, welcome);
+        // align tops so the welcome box sits flush with the top of the CampusClaim pill
+        topRow.setAlignment(Pos.TOP_LEFT);
+        topRow.setPadding(new Insets(20, 50, 25, 50));
+
+        int totalFound   = itemService.getTotalFoundRegistered();
+        int totalLost    = itemService.getTotalLostRegistered();
+        int totalClaimed = itemService.getTotalClaimed();
+        // claim efficiency = how many of the reported FOUND items got claimed
+        double efficiency = totalFound == 0 ? 0 : ((double) totalClaimed / totalFound) * 100.0;
+
+        // ---- LEFT column: "System Report" label outside (left-aligned), banner below ----
+        Label rTitle = new Label("System Report");
+        rTitle.setFont(Font.font(FONT, FontWeight.BOLD, 22));
+        rTitle.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+
+        // light-coloured ribbon-style box that holds the 3 stats + efficiency
+        VBox banner = new VBox(14);
+        banner.setAlignment(Pos.TOP_CENTER);
+        banner.setPadding(new Insets(18, 22, 22, 22));
+        banner.setStyle(
+            "-fx-background-color:" + ACCENT_X + ";" +
+            "-fx-background-radius:6;");
+        // narrower so there's a clearer gap between the report and the main menu
+        banner.setMinWidth(170);
+        banner.setMaxWidth(170);
+
+        banner.getChildren().addAll(
+                makeReportLine("Found Items:",  totalFound),
+                makeReportLine("Lost Items:",   totalLost),
+                makeReportLine("Claimed:",      totalClaimed)
         );
+
+        // efficiency block inside the banner
+        Label effTitle = new Label("Efficiency:");
+        effTitle.setFont(Font.font(FONT, FontWeight.BOLD, 14));
+        effTitle.setStyle("-fx-text-fill:" + LIGHT_TXT + ";");
+
+        ProgressBar pb = new ProgressBar(efficiency / 100.0);
+        pb.setPrefWidth(110);
+        pb.setPrefHeight(12);
+        pb.setStyle(
+            "-fx-accent:" + ACCENT + ";" +
+            "-fx-control-inner-background:" + LIGHT_TXT + ";" +
+            "-fx-border-color:" + ACCENT + ";" +
+            "-fx-border-radius:8;" +
+            "-fx-background-radius:8;");
+
+        Label effPct = new Label(String.format("%.0f%%", efficiency));
+        effPct.setFont(Font.font(FONT, FontWeight.BOLD, 13));
+        effPct.setStyle("-fx-text-fill:" + LIGHT_TXT + ";");
+
+        HBox effRow = new HBox(8, pb, effPct);
+        effRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox effBox = new VBox(4, effTitle, effRow);
+        effBox.setAlignment(Pos.CENTER_LEFT);
+        banner.getChildren().add(effBox);
+
+        VBox leftCol = new VBox(10, rTitle, banner);
+        // left-align the heading so it sits exactly above the banner's left edge
+        leftCol.setAlignment(Pos.TOP_LEFT);
+
+        // ---- RIGHT column: "Main Menu" label (left-aligned) + 3 icon cards in a light wrapper ----
+        Label mTitle = new Label("Main Menu");
+        mTitle.setFont(Font.font(FONT, FontWeight.BOLD, 22));
+        mTitle.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+        HBox mTitleRow = new HBox(mTitle);
+        mTitleRow.setAlignment(Pos.CENTER_LEFT);
+
+        HBox cardRow = new HBox(20,
+                buildMenuCard("Found Items",   "found.png",   this::showFoundItemsMenu),
+                buildMenuCard("Lost Items",    "lost.png",    this::showLostItemsMenu),
+                buildMenuCard("Claimed Items", "claimed.png", this::showClaimMenu));
+        cardRow.setAlignment(Pos.CENTER);
+
+        VBox cardWrap = new VBox(cardRow);
+        cardWrap.setAlignment(Pos.CENTER);
+        cardWrap.setPadding(new Insets(20, 25, 20, 25));
+        cardWrap.setStyle(
+            "-fx-background-color:" + ACCENT_X + ";" +
+            "-fx-background-radius:8;");
+
+        Label hint = new Label("Click to open!");
+        hint.setFont(Font.font(FONT, FontWeight.BOLD, 13));
+        hint.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+        HBox hintRow = new HBox(hint);
+        hintRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox rightCol = new VBox(12, mTitleRow, cardWrap, hintRow);
+        rightCol.setAlignment(Pos.TOP_LEFT);
+        HBox.setHgrow(rightCol, Priority.ALWAYS);
+
+        // pushed a little further down + bigger gap between Report and Main Menu
+        HBox center = new HBox(70, leftCol, rightCol);
+        center.setAlignment(Pos.TOP_LEFT);
+        center.setPadding(new Insets(40, 50, 30, 50));
+
+        VBox body = new VBox(topStrip, topRow, center);
+        body.setStyle("-fx-background-color:" + BG + ";");
+
+        root.setTop(null);
+        root.setCenter(body);
+        root.setBottom(null);
+    }
+
+    /** "Heading: N" line — single row, no caption text. */
+    private VBox makeReportLine(String heading, int count) {
+        Label h = new Label(heading);
+        h.setFont(Font.font(FONT, FontWeight.BOLD, 15));
+        h.setStyle("-fx-text-fill:" + LIGHT_TXT + ";");
+
+        // numbers use the same dark colour as the "Dashboard" page heading
+        Label n = new Label(String.valueOf(count));
+        n.setFont(Font.font(FONT, FontWeight.BOLD, 18));
+        n.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+
+        VBox v = new VBox(2, h, n);
+        v.setAlignment(Pos.CENTER);
+        return v;
+    }
+
+    /** A big square menu card with an icon on top of a label. */
+    private VBox buildMenuCard(String label, String iconFile, Runnable onClick) {
+        Label l = new Label(label);
+        l.setFont(Font.font(FONT, FontWeight.BOLD, 18));
+        l.setStyle("-fx-text-fill:" + LIGHT_TXT + ";");
+
+        ImageView iv = new ImageView();
+        try {
+            File f = new File(iconFile);
+            if (f.exists()) {
+                Image img = new Image(f.toURI().toString(), 80, 80, true, true);
+                iv.setImage(img);
+            }
+        } catch (Exception ignore) {}
+
+        // tint icon area white-ish background block to match prototype
+        VBox iconBox = new VBox(iv);
+        iconBox.setAlignment(Pos.CENTER);
+        iconBox.setPrefSize(110, 100);
+        iconBox.setStyle(
+            "-fx-background-color:" + LIGHT_TXT + ";" +
+            "-fx-background-radius:6;");
+
+        VBox card = new VBox(12, l, iconBox);
+        card.setAlignment(Pos.CENTER);
+        card.setPrefSize(170, 180);
+        card.setMinSize(170, 180);
+        card.setPadding(new Insets(15));
+        String base = "-fx-background-color:" + ACCENT + "; -fx-background-radius:14;";
+        String hover= "-fx-background-color:" + ACCENT_L + "; -fx-background-radius:14;";
+        card.setStyle(base);
+        card.setOnMouseEntered(e -> card.setStyle(hover));
+        card.setOnMouseExited(e -> card.setStyle(base));
+        card.setOnMouseClicked(e -> onClick.run());
+        card.setCursor(javafx.scene.Cursor.HAND);
+        return card;
+    }
+
+    // =========================================================
+    //  PAGE 2 — Found Items menu
+    // =========================================================
+    private void showFoundItemsMenu() {
+        Button v = bigMenuBtn("View Found Items");
+        Button r = bigMenuBtn("Report Found Item");
+        v.setOnAction(e -> showViewFoundItems());
+        r.setOnAction(e -> showFoundRegistrationStep1());
+
+        setPage(headerBar("Found Items"), wrapMenuRow(v, r), footerBar(this::showDashboard));
+    }
+
+    // =========================================================
+    //  PAGE 3 — View Found Items table
+    // =========================================================
+    private void showViewFoundItems() {
+        TableView<FoundItem> table = new TableView<>();
+        themeTable(table);
+
+        TableColumn<FoundItem,String> cId = col("Item ID", f -> "A-" + f.getItemID());
+        TableColumn<FoundItem,String> cN  = col("Name",     FoundItem::getName);
+        TableColumn<FoundItem,String> cC  = col("Category", FoundItem::getCategory);
+        TableColumn<FoundItem,String> cD  = col("Date",     f -> String.valueOf(f.getDate()));
+        TableColumn<FoundItem,String> cL  = col("Location", FoundItem::getLocation);
+        TableColumn<FoundItem,String> cS  = col("Status",   f -> f.getIsClaimed() ? "Claimed" : "Not Claimed");
+        table.getColumns().addAll(cId, cN, cC, cD, cL, cS);
+
+        ObservableList<FoundItem> data = FXCollections.observableArrayList(itemService.getAvailableFoundItems());
+        table.setItems(data);
+
+        VBox center = new VBox(15, subtitle("All currently available found items:"), table);
+        center.setPadding(new Insets(20, 30, 20, 30));
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        setPage(headerBar("View Found Items"), center, footerBar(this::showFoundItemsMenu));
+    }
+
+    /** Apply the project's green theme to a TableView (no blue selection,
+     *  light green alternating rows, dark green tint when a row is selected,
+     *  and stretch columns so there is no empty trailing column). */
+    @SuppressWarnings("unchecked")
+    private <T> void themeTable(TableView<T> t) {
+        t.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        // -fx-base re-tints all the default JavaFX colours; selection-bar
+        // controls the highlighted-row colour (replaces the default blue).
+        t.setStyle(
+            "-fx-base:" + BG + ";" +
+            "-fx-control-inner-background:#e2ece3;" +
+            "-fx-control-inner-background-alt:#d2dfd4;" +
+            "-fx-selection-bar:" + ACCENT_X + ";" +
+            "-fx-selection-bar-text:" + DARK_TXT + ";" +
+            "-fx-selection-bar-non-focused:" + ACCENT_X + ";" +
+            "-fx-table-cell-border-color:" + ACCENT_L + ";" +
+            "-fx-focus-color: transparent;" +
+            "-fx-faint-focus-color: transparent;"
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> TableColumn<T,String> col(String name, java.util.function.Function<T,String> getter) {
+        TableColumn<T,String> c = new TableColumn<>(name);
+        c.setCellValueFactory(cd -> new javafx.beans.property.SimpleStringProperty(getter.apply(cd.getValue())));
+        c.setPrefWidth(140);
+        return c;
+    }
+
+    // =========================================================
+    //  PAGE 4–6 — Found Item Registration (3 steps)
+    // =========================================================
+    private void showFoundRegistrationStep1() {
+        GridPane g = buildFormGrid();
+
+        TextField itemName  = inputField();  itemName.setPrefWidth(420);
+        ComboBox<String> cat = new ComboBox<>(FXCollections.observableArrayList(FOUND_CATEGORIES));
+        cat.setPromptText("Select a category");
+        cat.setStyle("-fx-background-color:" + LIGHT_TXT + ";");
+        TextField loc       = inputField();  loc.setPrefWidth(420);
+        TextField yourName  = inputField();  yourName.setPrefWidth(420);
+        TextField contact   = inputField();  contact.setPrefWidth(420);
+
+        g.add(fieldLabel("Item Name"),    0, 0); g.add(itemName, 1, 0);
+        g.add(fieldLabel("Category:"),    0, 1); g.add(cat,      1, 1);
+        g.add(fieldLabel("Location:"),    0, 2); g.add(loc,      1, 2);
+        g.add(fieldLabel("Your Name:"),   0, 3); g.add(yourName, 1, 3);
+        g.add(fieldLabel("Your Contact:"),0, 4); g.add(contact,  1, 4);
+
+        Button submit = primaryBtn("Submit");
+        submit.setOnAction(e -> {
+            // ---- Validation ----
+            if (itemName.getText().trim().isEmpty()
+                || cat.getValue() == null
+                || loc.getText().trim().isEmpty()
+                || yourName.getText().trim().isEmpty()
+                || contact.getText().trim().isEmpty()) {
+                showError("Please fill in ALL the fields before submitting.");
+                return;
+            }
+            String c = contact.getText().trim();
+            if (!validateContact(c)) return;
+            // create object
+            int choice = cat.getSelectionModel().getSelectedIndex() + 1;
+            FoundItem fi = itemService.createFoundItem(choice);
+            itemService.setBasicFields(fi,
+                itemName.getText().trim(),
+                loc.getText().trim(),
+                cat.getValue(),
+                c,
+                yourName.getText().trim());
+            showFoundRegistrationStep2(fi);
+        });
+
+        HBox btns = new HBox(20, submit);
+        btns.setAlignment(Pos.CENTER_RIGHT);
+        g.add(btns, 1, 5);
+
+        setPage(headerBar("Found Item Registration"), g, footerBar(this::showFoundItemsMenu));
+    }
+
+    /** Step 2 — answer validation questions. */
+    private void showFoundRegistrationStep2(FoundItem fi) {
+        Map<String,String> qs = fi.getValidationQuestions();
+        Map<String, TextField> answerFields = new LinkedHashMap<>();
+
+        GridPane g = buildFormGrid();
+
+        Label note = subtitle("These answers will be used for validation when someone tries to claim this item.");
+        note.setWrapText(true);
+        g.add(note, 0, 0, 2, 1);
+
+        int row = 1;
+        for (Map.Entry<String,String> q : qs.entrySet()) {
+            Label ql = fieldLabel(q.getValue());
+            TextField tf = inputField();
+            tf.setPrefWidth(420);
+            answerFields.put(q.getKey(), tf);
+            g.add(ql, 0, row);
+            g.add(tf, 1, row);
+            row++;
+        }
+
+        Button submit = primaryBtn("Submit");
+        submit.setOnAction(e -> {
+            Map<String,String> answers = new LinkedHashMap<>();
+            for (Map.Entry<String, TextField> en : answerFields.entrySet()) {
+                String v = en.getValue().getText().trim();
+                if (v.isEmpty()) {
+                    showError("Please answer ALL validation questions.");
+                    return;
+                }
+                answers.put(en.getKey(), v);
+            }
+            itemService.registerFoundItem(answers, fi);
+            persistAll();
+            showInfo("Found item registered successfully!\nID: A-" + fi.getItemID());
+            showFoundItemsMenu();
+        });
+
+        HBox btnRow = new HBox(submit);
+        btnRow.setAlignment(Pos.CENTER_RIGHT);
+        g.add(btnRow, 1, row);
+
+        setPage(headerBar("Found Item Registration"), g, footerBar(this::showFoundItemsMenu));
+    }
+
+    /** Shared GridPane styling for question/registration forms (matches Lost Item Registration). */
+    private GridPane buildFormGrid() {
+        GridPane g = new GridPane();
+        g.setHgap(20);
+        g.setVgap(20);
+        g.setPadding(new Insets(40, 90, 40, 90));
+        g.setAlignment(Pos.TOP_LEFT);
+        return g;
+    }
+
+    // =========================================================
+    //  PAGE 7 — Claim menu
+    // =========================================================
+    private void showClaimMenu() {
+        Button v = bigMenuBtn("View Claimed Items");
+        Button c = bigMenuBtn("Claim an Item");
+        v.setOnAction(e -> showViewClaimedItems());
+        c.setOnAction(e -> showClaimItemList());
+
+        setPage(headerBar("Claim Items"), wrapMenuRow(v, c), footerBar(this::showDashboard));
+    }
+
+    // ---- View Claimed Items ----
+    private void showViewClaimedItems() {
+        TableView<FoundItem> table = new TableView<>();
+        themeTable(table);
+        TableColumn<FoundItem,String> cId = col("Item ID", f -> "A-" + f.getItemID());
+        TableColumn<FoundItem,String> cN  = col("Name",     FoundItem::getName);
+        TableColumn<FoundItem,String> cC  = col("Category", FoundItem::getCategory);
+        TableColumn<FoundItem,String> cD  = col("Date",     f -> String.valueOf(f.getDate()));
+        TableColumn<FoundItem,String> cL  = col("Location", FoundItem::getLocation);
+        TableColumn<FoundItem,String> cS  = col("Status",   f -> "Claimed");
+        table.getColumns().addAll(cId, cN, cC, cD, cL, cS);
+
+        table.setItems(FXCollections.observableArrayList(itemService.getClaimedItems()));
+
+        VBox center = new VBox(15, subtitle("All items that have been successfully claimed:"), table);
+        center.setPadding(new Insets(20, 30, 20, 30));
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        setPage(headerBar("View Claimed Items"), center, footerBar(this::showClaimMenu));
+    }
+
+    // ---- Claim an Item: show available list, click row → claim ----
+    private void showClaimItemList() {
+        TableView<FoundItem> table = new TableView<>();
+        themeTable(table);
+        TableColumn<FoundItem,String> cId = col("Item ID", f -> "A-" + f.getItemID());
+        TableColumn<FoundItem,String> cN  = col("Name",     FoundItem::getName);
+        TableColumn<FoundItem,String> cC  = col("Category", FoundItem::getCategory);
+        TableColumn<FoundItem,String> cD  = col("Date",     f -> String.valueOf(f.getDate()));
+        TableColumn<FoundItem,String> cL  = col("Location", FoundItem::getLocation);
+        TableColumn<FoundItem,String> cS  = col("Status",   f -> "Not Claimed");
+        table.getColumns().addAll(cId, cN, cC, cD, cL, cS);
+        table.setItems(FXCollections.observableArrayList(itemService.getAvailableFoundItems()));
+
+        Button claim = primaryBtn("Claim Selected Item");
+        claim.setOnAction(e -> {
+            FoundItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null) {
+                showError("Please select an item from the list to claim.");
+                return;
+            }
+            showClaimAnswerForm(sel);
+        });
+
+        HBox bottom = new HBox(claim);
+        bottom.setAlignment(Pos.CENTER);
+
+        VBox center = new VBox(15, table, bottom);
+        center.setPadding(new Insets(20, 30, 20, 30));
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        setPage(headerBar("Claim an Item"), center, footerBar(this::showClaimMenu));
+    }
+
+    private void showClaimAnswerForm(FoundItem sel) {
+        Map<String,String> qs = sel.getValidationQuestions();
+        Map<String, TextField> fields = new LinkedHashMap<>();
+
+        GridPane g = buildFormGrid();
+
+        Label note = subtitle("Answer these for validation.");
+        g.add(note, 0, 0, 2, 1);
+
+        int row = 1;
+        for (Map.Entry<String,String> q : qs.entrySet()) {
+            g.add(fieldLabel(q.getValue()), 0, row);
+            TextField tf = inputField();
+            tf.setPrefWidth(420);
+            fields.put(q.getKey(), tf);
+            g.add(tf, 1, row);
+            row++;
+        }
+
+        Button next = primaryBtn("Next");
+        next.setOnAction(e -> {
+            Map<String,String> answers = new LinkedHashMap<>();
+            for (Map.Entry<String, TextField> en : fields.entrySet()) {
+                String v = en.getValue().getText().trim();
+                if (v.isEmpty()) {
+                    showError("Please answer ALL validation questions.");
+                    return;
+                }
+                answers.put(en.getKey(), v);
+            }
+            String result = itemService.processClaim(sel.getItemID(), answers);
+            persistAll();
+            if (result.contains("APPROVED")) {
+                List<String> lines = prettifyDetails(sel.getFullDetails());
+                showThemedDialog("Message", "THE CLAIM IS APPROVED",
+                        "Complete Details Of The Item", lines);
+            } else {
+                showError(result);
+            }
+            showClaimMenu();
+        });
+
+        HBox btnRow = new HBox(next);
+        btnRow.setAlignment(Pos.CENTER_RIGHT);
+        g.add(btnRow, 1, row);
+
+        setPage(headerBar("Claim an Item"), g, footerBar(this::showClaimMenu));
+    }
+
+    // =========================================================
+    //  Lost Items menu (page 11)
+    // =========================================================
+    private void showLostItemsMenu() {
+        Button v = bigMenuBtn("View Lost Items");
+        Button r = bigMenuBtn("Report a lost Item");
+        v.setOnAction(e -> showLostCategoriesMenu());
+        r.setOnAction(this::showLostRegistrationDummyArg);
+
+        setPage(headerBar("Lost Items"), wrapMenuRow(v, r), footerBar(this::showDashboard));
+    }
+    private void showLostRegistrationDummyArg(javafx.event.ActionEvent e){ showLostRegistration(); }
+
+    // page 12
+    private void showLostCategoriesMenu() {
+        Button a = bigMenuBtn("View Active\nlost Items");
+        Button x = bigMenuBtn("View Expired\nlost Items");
+        a.setOnAction(e -> showLostList(true,  null));
+        x.setOnAction(e -> showLostList(false, null));
+
+        VBox wrapped = wrapMenuRow(a, x);
+
+        Label note = new Label(
+            "Active Items: Items registered within the last 30 days.\n" +
+            "Expired Items: Items registered before the last 30 days.");
+        note.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+        note.setWrapText(true);
+
+        VBox noteBox = new VBox(note);
+        noteBox.setAlignment(Pos.CENTER);
+        noteBox.setPadding(new Insets(0, 40, 20, 40));
+
+        VBox center = new VBox(10, wrapped, noteBox);
+        center.setAlignment(Pos.TOP_CENTER);
+
+        setPage(headerBar("Lost Items Categories"), center, footerBar(this::showLostItemsMenu));
+    }
+
+    // pages 13/14 — active/expired lost items list (filterable)
+    private void showLostList(boolean active, String filterCat) {
+        // Filter row
+        HBox filterRow = new HBox(10);
+        filterRow.setPadding(new Insets(0,0,5,0));
+        for (String c : LOST_CATEGORIES) {
+            Button b = primaryBtn(c);
+            b.setOnAction(e -> showLostList(active, c));
+            filterRow.getChildren().add(b);
+        }
+        Button all = primaryBtn("All");
+        all.setOnAction(e -> showLostList(active, null));
+        filterRow.getChildren().add(all);
+
+        Label hint = subtitle("To filter by categories, click on a category above.");
+
+        TableView<LostItem> table = new TableView<>();
+        themeTable(table);
+        table.getColumns().add(col("Item ID",  i -> "L-" + i.getItemID()));
+        table.getColumns().add(col("Name",     LostItem::getName));
+        table.getColumns().add(col("Category", LostItem::getCategory));
+        table.getColumns().add(col("Date",     i -> String.valueOf(i.getDate())));
+        table.getColumns().add(col("Location", LostItem::getLocation));
+        table.getColumns().add(col("Picture",
+                i -> (i.getImagePath() != null && !i.getImagePath().isEmpty()) ? "Available" : "not Available"));
+
+        java.util.ArrayList<LostItem> items;
+        if (filterCat == null) {
+            items = active ? itemService.getActiveLostItems() : itemService.getExpiredLostItems();
+        } else {
+            items = active
+                ? itemService.getActiveLostByCategory(filterCat)
+                : itemService.getExpiredLostByCategory(filterCat);
+        }
+        table.setItems(FXCollections.observableArrayList(items));
+
+        Button viewPic = primaryBtn("View Picture");
+        viewPic.setOnAction(e -> {
+            LostItem sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null) { showError("Please select an item first."); return; }
+            showLostPicture(sel, active);
+        });
+
+        HBox bottom = new HBox(viewPic);
+        bottom.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox center = new VBox(10, filterRow, hint, table, bottom);
+        center.setPadding(new Insets(15, 25, 15, 25));
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        String pageTitle = active ? "Active Lost Items" : "Expired Lost Items";
+        setPage(headerBar(pageTitle), center, footerBar(this::showLostCategoriesMenu));
+    }
+
+    // page 15 — show picture
+    private void showLostPicture(LostItem item, boolean fromActive) {
+        VBox center = new VBox(15);
+        center.setAlignment(Pos.CENTER);
+        center.setPadding(new Insets(20));
+
+        if (item.getImagePath() == null || item.getImagePath().isEmpty()) {
+            Label l = new Label("No picture available for this item.");
+            l.setStyle("-fx-text-fill:" + DARK_TXT + "; -fx-font-size:16;");
+            center.getChildren().add(l);
+        } else {
+            try {
+                Image img = new Image(new File(item.getImagePath()).toURI().toString(),
+                                      600, 400, true, true);
+                ImageView iv = new ImageView(img);
+                center.getChildren().add(iv);
+            } catch (Exception ex) {
+                Label l = new Label("Could not load image: " + ex.getMessage());
+                l.setStyle("-fx-text-fill:" + DARK_TXT + ";");
+                center.getChildren().add(l);
+            }
+        }
+        Label info = subtitle("Item: " + item.getName() + "  |  Owner: " + item.getOwnerName()
+                + "  |  Contact: " + item.getOwnerContact());
+        center.getChildren().add(info);
+
+        setPage(headerBar("View Lost Item Picture"), center,
+                footerBar(() -> showLostList(fromActive, null)));
+    }
+
+    // pages 16/17/18 — Lost Item Registration
+    private String chosenImagePath = null;
+    private void showLostRegistration() {
+        chosenImagePath = null;
+
+        GridPane g = buildFormGrid();
+
+        TextField name  = inputField();  name.setPrefWidth(500);
+        ComboBox<String> cat = new ComboBox<>(FXCollections.observableArrayList(LOST_CATEGORIES));
+        cat.setPromptText("Select a category");
+        cat.setStyle("-fx-background-color:" + LIGHT_TXT + ";");
+        TextField loc   = inputField();  loc.setPrefWidth(500);
+        TextArea  desc  = textArea();    desc.setPrefWidth(500);
+        TextField owner = inputField();  owner.setPrefWidth(500);
+        TextField contact = inputField(); contact.setPrefWidth(500);
+
+        Label imgStatus = new Label("(no image chosen)");
+        imgStatus.setStyle("-fx-text-fill:" + DARK_TXT + "; -fx-font-style:italic;");
+        Button addImg = primaryBtn("Add");
+        addImg.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Select Picture");
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Images", "*.jpg","*.jpeg","*.png"));
+            File f = fc.showOpenDialog(stage);
+            if (f != null) {
+                String n = f.getName().toLowerCase();
+                if (!(n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png"))) {
+                    showError("Only JPG / PNG images are allowed.");
+                    return;
+                }
+                String savedPath = saveImageLocally(f);
+                if (savedPath == null) {
+                    showError("Could not save the picture. Please try again.");
+                    return;
+                }
+                chosenImagePath = savedPath;
+                imgStatus.setText(new File(savedPath).getName());
+            }
+        });
+        Label imgHint = new Label("JPG / PNG only");
+        imgHint.setStyle("-fx-text-fill:" + DARK_TXT + "; -fx-font-size:11; -fx-font-style:italic;");
+        VBox imgBox = new VBox(4, new HBox(10, addImg, imgStatus), imgHint);
+
+        g.add(fieldLabel("Item Name"),         0, 0); g.add(name,    1, 0);
+        g.add(fieldLabel("Category:"),         0, 1); g.add(cat,     1, 1);
+        g.add(fieldLabel("Last Location:"),    0, 2); g.add(loc,     1, 2);
+        g.add(fieldLabel("Description:"),      0, 3); g.add(desc,    1, 3);
+        g.add(fieldLabel("Owner's Name:"),     0, 4); g.add(owner,   1, 4);
+        g.add(fieldLabel("Owner's Contact:"),  0, 5); g.add(contact, 1, 5);
+        g.add(fieldLabel("Picture (optional):"),0,6); g.add(imgBox,  1, 6);
+
+        Button submit = primaryBtn("Submit");
+        submit.setOnAction(e -> {
+            if (name.getText().trim().isEmpty()
+                || cat.getValue() == null
+                || loc.getText().trim().isEmpty()
+                || desc.getText().trim().isEmpty()
+                || owner.getText().trim().isEmpty()
+                || contact.getText().trim().isEmpty()) {
+                showError("Please fill in ALL the required fields.");
+                return;
+            }
+            String c = contact.getText().trim();
+            if (!validateContact(c)) return;
+            LostItem li = itemService.registerLostItem(
+                name.getText().trim(),
+                loc.getText().trim(),
+                cat.getValue(),
+                owner.getText().trim(),
+                c,
+                desc.getText().trim(),
+                chosenImagePath);
+            persistAll();
+            showInfo("Lost item registered successfully!\nID: L-" + li.getItemID());
+            showLostItemsMenu();
+        });
+
+        HBox btns = new HBox(submit);
+        btns.setAlignment(Pos.CENTER_RIGHT);
+        g.add(btns, 1, 7);
+
+        setPage(headerBar("Lost Item Registration"), g, footerBar(this::showLostItemsMenu));
     }
 }

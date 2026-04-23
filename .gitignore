@@ -4,3 +4,6 @@ lib/
 *.ser
 counter.txt
 run.bat
+.vscode/
+1776*.jpg
+1776*.png
